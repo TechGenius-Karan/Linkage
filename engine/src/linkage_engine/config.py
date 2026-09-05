@@ -61,7 +61,25 @@ class Config:
     min_graph_edge_weight: float = 1.0
 
     # --- Hub removal (planning.md 7.3) ---
-    hub_percentile: float = 99.0
+    # DISABLED. Automatic degree pruning is off; `domain.wordlists.GENERIC_HUBS`
+    # does this job by hand instead.
+    #
+    # Measured in Phase 1: at P99 the cutoff removed 75 words at degree > 82 --
+    # animal, art, ball, bird, box, bridge. Those are good puzzle words. Degree
+    # measures how *connected* a word is; the thing that ruins a puzzle is how
+    # *generic* it is, and those are not the same property. `bird` is connected
+    # to everything because birds genuinely relate to flight, eggs, song and
+    # dinosaurs. `thing` is connected to everything because it means nothing.
+    # A degree count cannot tell those apart. A person can.
+    #
+    # Set a float to re-enable pruning. The machinery is kept and tested, and
+    # `build-graph` still *reports* the highest-degree words as candidates for
+    # the curated list -- which is the useful half of this idea
+    # (planning.md 7.9.4 Tier 3, Risk #19).
+    hub_percentile: float | None = None
+
+    #: Highest-degree words shown after a build, as blocklist candidates.
+    hub_report_top_n: int = 40
 
     # --- Reproducibility (planning.md 7.8) ---
     seed: int = 20_261_001

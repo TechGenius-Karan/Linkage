@@ -558,13 +558,22 @@ The single largest threat to puzzle quality, and it must be solved at graph-buil
 
 Words like `thing`, `person`, `make`, `use`, `good`, `time` have enormous degree in ConceptNet. Left in, **every** shortest path routes through them, producing chains like `cat → animal → thing → object → box` — technically valid, completely worthless.
 
-**Mitigation, applied when the graph is built:**
+**Mitigation — a curated blocklist, not a degree threshold** *(decided, Phase 1)*:
 
-- [ ] Compute the degree distribution; **drop every node above the 99th percentile**.
-- [ ] Add an explicit hub blocklist for survivors that are still too generic.
-
-> ⚠️ **Phase 1 measurement says the percentile is the weaker half of this pair, and currently harmful.** At P99 it removed `animal`, `art`, `ball`, `bird`, `box`, `bridge` — good puzzle words whose only sin is being well-connected. The curated `GENERIC_HUBS` list catches the actual poison (`thing`, `object`, `stuff`) earlier, at the vocabulary stage. Risk #19; recommendation is to raise `HUB_PERCENTILE` to 99.9 or drop it entirely.
+- [x] **`GENERIC_HUBS`** in `domain/wordlists.py` — a hand-maintained list of words that are generic rather than merely well-connected, applied at the **vocabulary** stage, before the graph is built.
+- [x] **Automatic degree pruning is disabled** (`HUB_PERCENTILE = None`).
 - [ ] Prefer mid-frequency vocabulary: rank 500–8000. The top 500 are too generic to surprise; below 8000 is too obscure to be fair.
+- [ ] After each build, `build-graph` prints the **40 highest-degree words** as candidates for the curated list. Information for a person, not automation.
+
+**Why the threshold lost.** Phase 1 measured it: at P99 it deleted 75 words at `degree > 82` — `animal, art, attack, ball, bar, base, bed, bill, bird, box, break, bridge`. Every one of those is a good puzzle word.
+
+> **Degree measures how *connected* a word is. What ruins a puzzle is how *generic* it is. Those are different properties, and only the second one matters.**
+>
+> `bird` is connected to everything because birds genuinely relate to flight, eggs, song, feathers and dinosaurs. `thing` is connected to everything because it means nothing in particular. One is rich, one is empty — and a degree count sees two large numbers. A person sees the difference instantly.
+
+The top 40 by degree in the shipped graph — `animal, device, building, horse, plate, plant, table, tree, bar, space, ground, ball, land, field, town, metal, box, rock, bed, fish, church, capital, ring, cabinet, ship, wood` — is a list of *good tiles*. That is the clearest possible evidence this signal was never the right one to prune on. Genuinely empty words are few and abstract, and are already on the curated list.
+
+Keeping the ranking as a **report** preserves the useful half of the idea (§7.9.4 Tier 3): it is exactly the right shortlist to review by hand when deciding what to add to `GENERIC_HUBS`. The pruning machinery stays in the codebase and stays tested, so re-enabling it is a one-line config change if the curated list ever proves insufficient.
 
 ### 7.4 Pathfinding — Bidirectional Bounded BFS
 
@@ -814,7 +823,7 @@ Seven hard bans plus one conditional, against ten. And the two pairs we just rel
 
 **Identical guarantee, meaningfully looser constraint.** Build full chordless first because the loop is simpler; drop to this if `diagnose` says you need it.
 
-**Tier 3 — Curated hub list instead of a degree percentile.**
+**Tier 3 — Curated hub list instead of a degree percentile.** ✅ **APPLIED in Phase 1** (§7.3, Risk #19)
 
 Percentile removal is blunt. It punishes a word for being *well-connected*, but the actual problem is a word being *generic*. `music`, `fire`, `gold`, and `water` are all high-degree **and** excellent puzzle words. The poison is `thing`, `object`, `stuff`, `item`, `part`, `way`, `kind`, `make`, `use`.
 
@@ -877,7 +886,12 @@ Union WordNet hypernym/meronym chains, or the Wikipedia link graph, into the sam
 Built from ConceptNet 5.7 with the filters in §7.1–§7.3. **34,074,917 lines parsed in 3m18s, 0 malformed.**
 
 ```
-  graph
+  graph -- SHIPPED (curated hubs only, degree pruning removed)
+    nodes                     7,625        edges          54,373
+    mean degree               14.26        median              9
+    max degree                  208        (animal)
+
+  graph -- as first measured (P99 degree pruning ON)
     nodes                     7,524        edges          46,795
     components                    4        largest         7,518  (99.9%)
     mean degree               12.44        median              8
@@ -894,6 +908,8 @@ Built from ConceptNet 5.7 with the filters in §7.1–§7.3. **34,074,917 lines 
     chordless             23,895,424    73.2%   <-- expected ~7%
     min weight >= 2.0         62,039     0.3%   <-- the actual killer
 ```
+
+> The funnel above was measured on the P99-pruned graph. Removing the pruner made the graph **denser** (54,373 edges vs 46,795), which can only increase path counts — so every conclusion below holds with more headroom, not less. The one figure that could move is clustering, since the restored words are the well-connected ones; re-measure with `linkage diagnose` in Phase 2 rather than assuming.
 
 **Four conclusions, all of which change the plan:**
 
@@ -1370,7 +1386,7 @@ Actions:
 | 16 | **Not enough uniqueness-safe distractors for a puzzle** | Medium | Candidate discarded, yield drops further | Fall back to `BANK_SIZE = 10` (spec allows 10–12) before discarding the candidate (§7.9.4 Tier 4). |
 | 17 | **Midnight passes with the tab open** | Certain for some players | Progress written under yesterday's ID; stale board | Recompute the puzzle number on `visibilitychange`/`focus`; prompt rather than yank the board (§8.7). |
 | 18 | **Same-stem or overlapping words in one bank** | Medium | Looks sloppy; `moon` next to `moons` | Porter-stem comparison plus a substring check across the bank at selection time (§7.6). |
-| 19 | **Degree-percentile pruning is deleting good puzzle words** | **Confirmed in Phase 1** | Loses `animal`, `bird`, `bridge`, `box` — exactly the vocabulary the game is built on | P99 removed 75 words at `degree > 82`, nearly all of them good. The curated `GENERIC_HUBS` list already removes the real poison at the vocabulary stage, so the percentile is redundant and net-harmful. **Raise `HUB_PERCENTILE` to 99.9 or disable it and rely on the curated list** (§7.9.4 Tier 3, §7.9.5). Requires a graph rebuild — ~4 min, the dump is cached. |
+| 19 | ~~**Degree-percentile pruning is deleting good puzzle words**~~ | ~~Confirmed~~ **RESOLVED** | — | **Automatic pruning removed; the curated `GENERIC_HUBS` list does this job** (§7.3). All 75 words restored, `animal` through `bridge`. Degree is the wrong signal — it measures connectedness, not genericness. `build-graph` still reports the top 40 by degree as candidates for the curated list. |
 | 20 | **Generator enumerates paths exhaustively and never finishes** | High if unguarded | `generate` runs for hours producing candidates nobody will review | 25 seeds yielded 33M paths (§7.9.5). The generator needs per-seed budgets and early termination, not exhaustive enumeration. Design constraint for Phase 2. |
 
 ---
@@ -1403,7 +1419,7 @@ Completeness check: **every problem named anywhere in this document, and where i
 
 | Problem | Solution | § |
 |---|---|---|
-| Hub words route every path through `thing`/`object` | Drop above the 99th degree percentile + explicit blocklist; curated list if the percentile proves too blunt | §7.3, §7.9.4 T3 |
+| Hub words route every path through `thing`/`object` | Curated `GENERIC_HUBS` blocklist at the vocabulary stage. Degree pruning was tried, measured, and **removed** — it deleted good words (Risk #19) | §7.3 |
 | Morphological edges (`run → running`) are not insights | Relation blocklist: `FormOf`, `DerivedFrom`, `EtymologicallyRelatedTo` | §7.2 |
 | Synonyms/antonyms make a leap too small or confusing | Relation blocklist | §7.2 |
 | Chains feel arbitrary — a rung could be skipped | Chordless constraint; every rung load-bearing | §7.4 |
@@ -1477,7 +1493,8 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | `MAX_ATTEMPTS` | 3 | Three lives. **Tune by playtest** (Risk #11). |
 | `MIN_EDGE_WEIGHT` | 2.0 | Gate on the path's *weakest* edge. §7.9.4 Tier 1 may soften this to a rank. |
 | `BFS_TOP_K` | 40 | Neighbours kept per frontier expansion. |
-| `HUB_PERCENTILE` | 99 | Degree cutoff for hub-word removal. §7.9.4 Tier 3 may replace it with a curated list. |
+| `HUB_PERCENTILE` | `None` | **Automatic degree pruning is off** — the curated `GENERIC_HUBS` list does this job (§7.3, Risk #19). Set a float to re-enable; the machinery is kept and tested. |
+| `HUB_REPORT_TOP_N` | 40 | Highest-degree words printed after a build, as curated-list candidates. |
 | `ENFORCE_CHORDLESS` | `full` | `full` \| `minimal` \| `off` — see §7.9.4 Tier 2. `minimal` keeps the uniqueness proof intact. |
 | `MAX_WORD_REUSE` | 3 | Times any word may appear across the whole year (§7.7.1). |
 | `TARGET_APPROVED` | 365 | `generate --until-approved` tops up until this many are accepted. |
@@ -1505,6 +1522,7 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | CI verification | **Induced `verification-subgraph.json`** | Skipping the golden test in CI; building the graph in CI | ~300 KB fixture makes the most important test run on every PR with no dataset. |
 | Answer-key fixture location | **`engine/fixtures/`** | `web/public/puzzles/` | It is unobfuscated and would undo §3.2 if served. |
 | Puzzle repetition control | **Corpus-level QC at export** | Per-puzzle checks only | 365 individually-good puzzles can still make a bad year. |
+| Hub-word removal | **Curated `GENERIC_HUBS` list only** | P99 degree pruning; P99.9 as a compromise | Measured in Phase 1: degree tracks connectedness, genericness is what ruins a puzzle, and they are different properties. P99 deleted `animal`, `bird`, `bridge`. A threshold cannot make this call; a person can, and only a handful of words need it. The ranking is still *reported* as curation input. |
 
 ---
 

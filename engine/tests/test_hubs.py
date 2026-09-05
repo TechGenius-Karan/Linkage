@@ -5,6 +5,7 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
+from linkage_engine.config import Config
 from linkage_engine.domain.hubs import (
     degree_cutoff,
     degree_histogram,
@@ -12,7 +13,19 @@ from linkage_engine.domain.hubs import (
     isolated_nodes,
     percentile,
     sorted_neighbours,
+    top_by_degree,
 )
+
+
+def test_hub_pruning_is_disabled_by_default():
+    """Risk #19: degree pruning deleted `animal`, `bird`, `bridge` and other
+    good puzzle words. Genericness is what ruins a puzzle, and degree does not
+    measure it -- so the curated GENERIC_HUBS list does this job instead.
+
+    This test is the guard: re-enabling automatic pruning must be a deliberate
+    act, not something a config refactor does by accident.
+    """
+    assert Config().hub_percentile is None
 
 
 @pytest.mark.parametrize(
@@ -61,6 +74,32 @@ def test_degree_cutoff_matches_percentile_of_the_degree_sequence():
     g = nx.star_graph(10)  # centre degree 10, leaves degree 1
     assert degree_cutoff(g, 100.0) == 10
     assert degree_cutoff(g, 50.0) == 1
+
+
+def test_top_by_degree_ranks_highest_first():
+    g = nx.Graph()
+    for i in range(5):
+        g.add_edge("big", f"n{i}")
+    g.add_edge("small", "n0")
+    assert top_by_degree(g, 2) == [("big", 5), ("n0", 2)]
+
+
+def test_top_by_degree_breaks_ties_by_name():
+    """Deterministic output: this list is read by a person deciding what to
+    add to GENERIC_HUBS, so it must not reshuffle between runs."""
+    g = nx.Graph()
+    for leaf in ("a", "b"):
+        g.add_edge("zebra", leaf)
+    for leaf in ("c", "d"):
+        g.add_edge("alpha", leaf)
+    # Both hubs sit at degree 2; the name is the tiebreak.
+    assert top_by_degree(g, 2) == [("alpha", 2), ("zebra", 2)]
+
+
+def test_top_by_degree_handles_n_larger_than_the_graph():
+    g = nx.Graph()
+    g.add_edge("a", "b")
+    assert len(top_by_degree(g, 99)) == 2
 
 
 def test_isolated_nodes():

@@ -161,7 +161,20 @@ def build_graph(
     typer.echo(f"  before pruning       {graph.number_of_nodes():>12,} nodes")
     typer.echo(f"                       {graph.number_of_edges():>12,} edges")
 
-    removed_hubs, cutoff = graph_builder.prune_hubs(graph, cfg.hub_percentile)
+    if cfg.hub_percentile is None:
+        removed_hubs, cutoff = set(), 0
+        typer.echo(
+            "  hub pruning          disabled -- curated GENERIC_HUBS list only"
+        )
+    else:
+        removed_hubs, cutoff = graph_builder.prune_hubs(graph, cfg.hub_percentile)
+        typer.echo(
+            f"  hub cutoff (P{cfg.hub_percentile:g})     degree > {cutoff}"
+            f"  -> removed {len(removed_hubs):,}"
+        )
+        if removed_hubs:
+            typer.echo(f"    e.g. {', '.join(sorted(removed_hubs)[:12])}")
+
     orphans = graph_builder.drop_isolated(graph)
     stats = graph_builder.summarise(
         graph,
@@ -169,14 +182,6 @@ def build_graph(
         isolated_removed=len(orphans),
         hub_degree_cutoff=cutoff,
     )
-
-    typer.echo(
-        f"  hub cutoff (P{cfg.hub_percentile:g})     degree > {cutoff}"
-        f"  -> removed {len(removed_hubs):,}"
-    )
-    if removed_hubs:
-        sample = ", ".join(sorted(removed_hubs)[:12])
-        typer.echo(f"    e.g. {sample}")
     typer.echo(f"  isolated removed     {len(orphans):>12,}")
 
     _echo_header("5/5  Saving")
@@ -195,6 +200,14 @@ def build_graph(
 
     size_mb = cfg.graph_path.stat().st_size / (1024 * 1024)
     typer.echo(f"  {cfg.graph_path}  ({size_mb:.1f} MB)")
+
+    _echo_header("Blocklist candidates")
+    typer.echo(
+        "  Highest-degree words. Anything here that is generic rather than\n"
+        "  merely well-connected belongs in domain/wordlists.py GENERIC_HUBS."
+    )
+    for name, degree in hubs.top_by_degree(graph, cfg.hub_report_top_n):
+        typer.echo(f"    {degree:>4}  {name}")
 
     _echo_header("Result")
     typer.echo(f"  nodes          {stats.nodes:>12,}")
