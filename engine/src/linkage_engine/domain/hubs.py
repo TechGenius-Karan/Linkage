@@ -55,6 +55,17 @@ def find_hubs(graph: nx.Graph, p: float) -> tuple[set[str], int]:
     return hubs, cutoff
 
 
+def top_by_degree(graph: nx.Graph, n: int) -> list[tuple[str, int]]:
+    """The `n` most-connected words, highest first, ties broken by name.
+
+    This is the *useful* half of degree analysis. Automatic pruning on this
+    signal deletes good puzzle words (Risk #19), but the same ranking is
+    exactly the right shortlist to review by hand when deciding what belongs
+    in `wordlists.GENERIC_HUBS`. Information, not automation.
+    """
+    return sorted(graph.degree(), key=lambda kv: (-kv[1], kv[0]))[:n]
+
+
 def isolated_nodes(graph: nx.Graph) -> set[str]:
     """Nodes with no remaining edges -- useless for pathfinding."""
     return {n for n, d in graph.degree() if d == 0}
