@@ -15,8 +15,8 @@ See [planning.md](planning.md) for the full design and architecture.
 
 | Phase | What | State |
 |---|---|---|
-| 1 | Data engine -- ConceptNet graph | **done** -- 7,524 nodes, 46,795 edges |
-| 2 | Puzzle generator + human review | not started |
+| 1 | Data engine -- ConceptNet graph | **done** -- 7,625 nodes, 54,373 edges |
+| 2 | Puzzle generator + human review | **engine done** -- awaiting curation |
 | 3 | Frontend scaffold (Vite/React/TS) | not started |
 | 4 | Game loop and logic | not started |
 | 5 | Polish and share | not started |
@@ -35,6 +35,11 @@ python -m pip install -e engine
 python -m nltk.downloader wordnet omw-1.4
 linkage build-graph
 linkage inspect apple
+
+linkage diagnose            # yield funnel + go/no-go
+linkage generate --count 900
+linkage review              # human accept/reject
+linkage export              # per-day files + manifest + verification subgraph
 ```
 
 `build-graph` downloads the ConceptNet assertions dump (~1.2 GB) on first run

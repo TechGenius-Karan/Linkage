@@ -6,19 +6,53 @@ the domain tier; every byte it reads or writes went through the data tier.
 
 from __future__ import annotations
 
+import random
+import statistics
 from pathlib import Path
 from typing import Annotated
 
+import networkx as nx
 import typer
 from tqdm import tqdm
 
-from . import __version__
+from . import __version__, review as review_ui
 from .config import DEFAULT, Config
-from .data import conceptnet, graph_store
+from .data import codec, conceptnet, exporters, graph_store
 from .data.pos import make_pos_checker
+from .data.stemming import PorterStemmerAdapter
 from .data.vocabulary import build_vocabulary
-from .domain import graph_builder, hubs
+from .domain import corpus, graph_builder, hubs
+from .domain.distractors import DistractorSelector
+from .domain.generator import CandidateGenerator
+from .domain.models import Candidate, Path as ChainPath
 from .domain.relations import ALLOWLIST, is_allowed
+from .domain.scoring import QualityScorer
+
+
+def _load_graph(cfg: Config) -> nx.Graph:
+    """Load the graph and warn if it predates the current config."""
+    graph = graph_store.load(cfg.graph_path)
+    warning = graph_store.check_fingerprint(graph, cfg)
+    if warning:
+        typer.secho(f"WARNING: {warning}", fg=typer.colors.YELLOW)
+    return graph
+
+
+def _candidate_from_dict(row: dict) -> Candidate:
+    """Rehydrate a candidate from candidates.json for export."""
+    path = ChainPath(
+        start=row["start"],
+        end=row["end"],
+        steps=tuple(row["solution"]),
+        weights=tuple(row["weights"]),
+        relations=tuple(tuple(r) for r in row["relations"]),
+    )
+    return Candidate(
+        path=path,
+        bank=tuple(row["bank"]),
+        quality=row["quality"],
+        score_breakdown=tuple(sorted(row.get("scores", {}).items())),
+    )
 
 app = typer.Typer(
     add_completion=False,
@@ -270,6 +304,404 @@ def stats() -> None:
     _echo_header("Degree distribution")
     for bucket, count in hubs.degree_histogram(degrees).items():
         typer.echo(f"  {bucket:>8}  {count:>7,}")
+
+
+@app.command()
+def diagnose(
+    samples: Annotated[
+        int, typer.Option("--samples", help="Endpoint pairs to sample.")
+    ] = 200,
+) -> None:
+    """Graph shape and the survival funnel (planning.md 7.9.3).
+
+    Run this BEFORE generating. It converts the yield question from "unknown,
+    possibly fatal" into a table you read off the screen, and it tells you
+    which constraint is actually costing you -- not the one you guessed.
+    """
+    cfg = DEFAULT
+    graph = _load_graph(cfg)
+    degrees = [d for _, d in graph.degree()]
+
+    _echo_header("Graph shape")
+    typer.echo(f"  nodes                 {graph.number_of_nodes():>12,}")
+    typer.echo(f"  edges                 {graph.number_of_edges():>12,}")
+    components = sorted(nx.connected_components(graph), key=len, reverse=True)
+    largest = len(components[0]) if components else 0
+    typer.echo(
+        f"  components            {len(components):>12,}   "
+        f"largest {largest:,} ({100 * largest / max(1, graph.number_of_nodes()):.1f}%)"
+    )
+    typer.echo(f"  mean degree           {statistics.fmean(degrees):>12.2f}")
+    typer.echo(f"  median degree         {int(statistics.median(degrees)):>12,}")
+    typer.echo(f"  max degree            {max(degrees):>12,}")
+
+    # The single number that predicts the chordless kill rate.
+    typer.echo(f"  avg clustering        {nx.average_clustering(graph):>12.4f}")
+    typer.echo(f"  transitivity          {nx.transitivity(graph):>12.4f}")
+
+    _echo_header("Edge weight distribution")
+    weights = [d["weight"] for _, _, d in graph.edges(data=True)]
+    for threshold in (1.5, 2.0, 2.5, 3.0, 5.0):
+        p = sum(w >= threshold for w in weights) / len(weights)
+        marker = "  <-- MIN_EDGE_WEIGHT" if threshold == cfg.min_edge_weight else ""
+        typer.echo(f"  >= {threshold:<4} {p * 100:>6.1f}%   p^5 = {p**5 * 100:>8.4f}%{marker}")
+
+    _echo_header(f"Survival funnel  ({samples} endpoint pairs)")
+    rng = random.Random(cfg.seed)
+    selector = DistractorSelector(cfg, PorterStemmerAdapter())
+    generator = CandidateGenerator(graph, cfg, rng, selector, QualityScorer())
+
+    bar = tqdm(total=samples, unit=" pairs", desc="  sampling")
+    usable = 0
+    for _ in generator.generate(wanted=samples, max_pairs=samples):
+        usable += 1
+    bar.update(generator.counts.pairs_sampled - bar.n)
+    bar.close()
+
+    counts = generator.counts
+    typer.echo(f"  {'pairs sampled':<28} {counts.pairs_sampled:>12,}")
+    previous = None
+    for label, value in counts.as_rows():
+        share = f"  ({100 * value / previous:5.1f}% of prev)" if previous else ""
+        typer.echo(f"  {label:<28} {value:>12,}{share}")
+        previous = value
+
+    # Outside the funnel on purpose: several banks may be built for one pair,
+    # but only the best-scoring becomes a candidate (one puzzle per pair,
+    # planning.md 7.7.1).
+    typer.echo(f"\n  {'safe banks built':<28} {counts.unique_bank:>12,}")
+    typer.echo(f"  {'candidates emitted':<28} {usable:>12,}")
+
+    per_thousand = 1000 * usable / max(1, counts.pairs_sampled)
+    hit_rate = 100 * usable / max(1, counts.pairs_sampled)
+    typer.echo(f"\n  usable candidates per 1k pairs   {per_thousand:,.0f}   ({hit_rate:.0f}% of pairs)")
+
+    _echo_header("Go / no-go")
+    if per_thousand < 3:
+        typer.secho(
+            "  BELOW THRESHOLD (3 per 1k). Climb the planning.md 7.9.4 remedy\n"
+            "  ladder before writing more generator code.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+    typer.secho(
+        f"  PASS -- {per_thousand:,.0f} per 1k against a threshold of 3.",
+        fg=typer.colors.GREEN,
+    )
+
+
+@app.command()
+def generate(
+    count: Annotated[
+        int, typer.Option("--count", help="Candidates to generate this run.")
+    ] = 800,
+    until_approved: Annotated[
+        int | None,
+        typer.Option(
+            "--until-approved",
+            help="Top up until this many candidates are approved overall. "
+            "Skips anything already decided.",
+        ),
+    ] = None,
+    max_pairs: Annotated[
+        int | None,
+        typer.Option("--max-pairs", help="Endpoint pairs to try. Default: 40x count."),
+    ] = None,
+    seed_offset: Annotated[
+        int, typer.Option("--seed-offset", help="Vary this to find different puzzles.")
+    ] = 0,
+) -> None:
+    """Generate ranked, uniquely-solvable candidates for review."""
+    cfg = DEFAULT
+    graph = _load_graph(cfg)
+
+    decisions = exporters.read_decisions(cfg.decisions_path)
+    approved_now = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
+
+    if until_approved is not None:
+        shortfall = until_approved - approved_now
+        if shortfall <= 0:
+            typer.secho(
+                f"Already {approved_now} approved (target {until_approved}). Nothing to do.",
+                fg=typer.colors.GREEN,
+            )
+            raise typer.Exit(0)
+        # Pessimistic acceptance rate so one run usually suffices.
+        count = max(count, shortfall * 3)
+        typer.echo(
+            f"  {approved_now} approved, need {shortfall} more -> generating {count}"
+        )
+        typer.secho(
+            "\n  NOTE: approving N candidates does not yield N puzzles.\n"
+            "  `export` then thins the set again to keep words from repeating\n"
+            f"  across the year. Measured at MAX_WORD_REUSE={cfg.max_word_reuse}:\n"
+            "  roughly 15% of candidates survive diversity selection, so a full\n"
+            "  year needs on the order of 2,500 approved. Raising the cap is the\n"
+            "  lever if that is too much review (planning.md 7.7.1).",
+            fg=typer.colors.YELLOW,
+        )
+
+    budget = max_pairs if max_pairs is not None else count * 40
+    rng = random.Random(cfg.seed + seed_offset)
+    selector = DistractorSelector(cfg, PorterStemmerAdapter())
+    generator = CandidateGenerator(graph, cfg, rng, selector, QualityScorer())
+
+    _echo_header(f"Generating up to {count:,} candidates (budget {budget:,} pairs)")
+    existing = {row["hash"]: row for row in _safe_read_candidates(cfg)}
+    typer.echo(f"  {len(existing):,} candidate(s) already on disk")
+
+    bar = tqdm(total=count, unit=" cand", desc="  generating")
+    fresh = 0
+    for candidate in generator.generate(wanted=count, max_pairs=budget):
+        digest = candidate.content_hash()
+        if digest in decisions or digest in existing:
+            continue
+        existing[digest] = exporters.candidate_to_dict(candidate)
+        fresh += 1
+        bar.update(1)
+    bar.close()
+
+    rows = list(existing.values())
+    exporters.write_candidate_rows(cfg.candidates_path, rows)
+
+    counts = generator.counts
+    _echo_header("Result")
+    typer.echo(f"  pairs sampled     {counts.pairs_sampled:>10,}")
+    typer.echo(f"  paths considered  {counts.paths_found:>10,}")
+    typer.echo(f"  safe banks built  {counts.unique_bank:>10,}")
+    typer.echo(f"  new candidates    {fresh:>10,}")
+    typer.echo(f"  total on disk     {len(rows):>10,}")
+    if rows:
+        qualities = [r["quality"] for r in rows]
+        typer.echo(
+            f"  quality  best {max(qualities):.2f}  "
+            f"median {statistics.median(qualities):.2f}  worst {min(qualities):.2f}"
+        )
+    typer.secho(f"\n  {cfg.candidates_path}", fg=typer.colors.BRIGHT_BLACK)
+    typer.secho("\nNext:  linkage review", fg=typer.colors.GREEN)
+
+
+def _safe_read_candidates(cfg: Config) -> list[dict]:
+    try:
+        return exporters.read_candidates(cfg.candidates_path)
+    except FileNotFoundError:
+        return []
+
+
+@app.command()
+def review(
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="Stop after this many decisions.")
+    ] = None,
+    redo: Annotated[
+        bool, typer.Option("--redo", help="Re-review candidates already decided.")
+    ] = False,
+) -> None:
+    """Accept or reject candidates by hand (planning.md 7.7).
+
+    Decisions are keyed by content hash and stored separately from
+    candidates.json, so re-running `generate` never discards a judgement.
+    """
+    cfg = DEFAULT
+    rows = exporters.read_candidates(cfg.candidates_path)
+    decisions = exporters.read_decisions(cfg.decisions_path)
+
+    queue = [r for r in rows if redo or r["hash"] not in decisions]
+    if not queue:
+        approved = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
+        typer.secho(
+            f"Nothing left to review. {approved} approved of {len(rows)} candidates.",
+            fg=typer.colors.GREEN,
+        )
+        raise typer.Exit(0)
+
+    typer.echo(f"\n{len(queue):,} candidate(s) to review. Ctrl-C or 'q' saves and exits.")
+    decided = 0
+    try:
+        for index, row in enumerate(queue, start=1):
+            if limit is not None and decided >= limit:
+                break
+            approved = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
+            review_ui.render(row, index, len(queue), approved)
+            verdict = review_ui.prompt()
+            if verdict == "quit":
+                break
+            if verdict != review_ui.SKIP:
+                decisions[row["hash"]] = verdict
+                decided += 1
+    except KeyboardInterrupt:
+        typer.echo("\n  interrupted")
+    finally:
+        exporters.write_decisions(cfg.decisions_path, decisions)
+
+    approved = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
+    rejected = sum(1 for v in decisions.values() if v == review_ui.REJECT)
+    _echo_header("Session")
+    typer.echo(f"  decided this run  {decided:>6,}")
+    typer.echo(f"  approved total    {approved:>6,}  / target {cfg.target_approved}")
+    typer.echo(f"  rejected total    {rejected:>6,}")
+    if approved >= cfg.target_approved:
+        typer.secho(
+            f"\nTarget reached. Next:  linkage export --start-date {cfg.epoch_date}",
+            fg=typer.colors.GREEN,
+        )
+
+
+@app.command()
+def export(
+    count: Annotated[
+        int | None,
+        typer.Option("--count", help="Puzzles to add. Defaults to one batch."),
+    ] = None,
+    replace: Annotated[
+        bool,
+        typer.Option("--replace", help="Rebuild the archive instead of appending."),
+    ] = False,
+    start_date: Annotated[
+        str, typer.Option("--start-date", help="Date of puzzle #1. First batch only.")
+    ] = "",
+    verify_only: Annotated[
+        bool,
+        typer.Option(
+            "--verify-only",
+            help="Add nothing. Re-check the existing archive and refresh the "
+            "manifest and verification subgraph.",
+        ),
+    ] = False,
+) -> None:
+    """Append a batch of puzzles to the archive.
+
+    The archive grows a month at a time. Run `export` again whenever more
+    candidates have been reviewed; existing puzzles keep their numbers and
+    dates, and the new batch picks up the day after the last one.
+    """
+    cfg = DEFAULT
+    graph = _load_graph(cfg)
+    batch = count or cfg.batch_size
+
+    if verify_only:
+        # The path out of planning.md 12.1: a bad puzzle is fixed by editing
+        # its own day file, which leaves the subgraph stale.
+        archive = exporters.read_archive(cfg)
+        if not archive:
+            typer.secho("Archive is empty; nothing to verify.", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        _echo_header("Verifying existing archive")
+        try:
+            report = corpus.check(archive, cfg.max_word_reuse, cfg.word_reuse_window)
+        except corpus.CorpusViolation as exc:
+            typer.secho(str(exc), fg=typer.colors.RED)
+            raise typer.Exit(1) from exc
+        typer.secho(f"  PASS -- {report.summary()}", fg=typer.colors.GREEN)
+        exporters.write_manifest(cfg, archive)
+        subgraph = exporters.write_verification_subgraph(cfg, graph, archive)
+        typer.echo(f"  refreshed manifest.json and {subgraph.name}")
+        typer.secho("\nNext:  pytest", fg=typer.colors.GREEN)
+        raise typer.Exit(0)
+
+    existing = [] if replace else exporters.read_archive(cfg)
+    if replace and cfg.puzzles_dir.exists():
+        typer.secho(
+            "  --replace: existing per-day files will be rewritten from scratch",
+            fg=typer.colors.YELLOW,
+        )
+    first_id, first_date = exporters.next_slot(existing, start_date or cfg.epoch_date)
+
+    rows = {r["hash"]: r for r in exporters.read_candidates(cfg.candidates_path)}
+    decisions = exporters.read_decisions(cfg.decisions_path)
+    approved = [
+        _candidate_from_dict(rows[h])
+        for h, verdict in sorted(decisions.items())
+        if verdict == review_ui.ACCEPT and h in rows
+    ]
+    if not approved:
+        typer.secho("Nothing approved yet. Run `linkage review`.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    _echo_header("Archive")
+    if existing:
+        typer.echo(
+            f"  {len(existing):,} already shipped, #{existing[0].id} {existing[0].date}"
+            f" -> #{existing[-1].id} {existing[-1].date}"
+        )
+    else:
+        typer.echo("  empty -- this is the first batch")
+    typer.echo(f"  next slot: #{first_id} on {first_date}")
+
+    approved.sort(key=lambda c: (-c.quality, c.content_hash()))
+
+    # Enforce the corpus rules while choosing, rather than assembling a batch
+    # and rejecting it (planning.md 7.7.1). `already_shipped` makes the cap
+    # span the whole archive, so month two cannot reuse month one's words.
+    _echo_header(f"Diversity selection (batch of {batch}, max {cfg.max_word_reuse} uses per {cfg.word_reuse_window} puzzles)")
+    selected, selection = corpus.select_diverse(
+        approved,
+        target=batch,
+        max_word_reuse=cfg.max_word_reuse,
+        window=cfg.word_reuse_window,
+        already_shipped=existing,
+    )
+    typer.echo(f"  {selection.summary()}")
+    if not selected:
+        typer.secho(
+            "  Nothing new fits. Approve more candidates, or raise "
+            "MAX_WORD_REUSE.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+    if selection.selected < batch:
+        typer.secho(
+            f"  Short batch: {selection.selected} of {batch}. Shipping anyway.",
+            fg=typer.colors.YELLOW,
+        )
+
+    # The launch week is the best of the very first batch; later batches are
+    # shuffled so difficulty does not trend (7.7.1).
+    if existing:
+        ordered = list(selected)
+        random.Random(cfg.seed + first_id).shuffle(ordered)
+    else:
+        launch, rest = selected[: cfg.launch_week_size], selected[cfg.launch_week_size :]
+        random.Random(cfg.seed).shuffle(rest)
+        ordered = launch + rest
+
+    fresh = exporters.assign_dates(ordered, first_date, first_id=first_id)
+    archive = existing + fresh
+
+    _echo_header("Corpus quality control")
+    try:
+        report = corpus.check(archive, cfg.max_word_reuse, cfg.word_reuse_window)
+    except corpus.CorpusViolation as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(1) from exc
+    typer.secho(f"  PASS -- {report.summary()}", fg=typer.colors.GREEN)
+    typer.echo("  most reused: " + ", ".join(f"{w} x{n}" for w, n in report.most_reused[:6]))
+
+    _echo_header("Writing")
+    written = exporters.write_puzzles(cfg, fresh)
+    exporters.write_manifest(cfg, archive)
+    exporters.write_licence_notice(cfg)
+    subgraph = exporters.write_verification_subgraph(cfg, graph, archive)
+    codec.write_fixture(cfg.codec_fixture_path)
+
+    typer.echo(f"  {len(written):,} new per-day files -> {cfg.puzzles_dir}")
+    typer.echo(f"  manifest.json, LICENSE.txt")
+    typer.echo(
+        f"  {subgraph.relative_to(cfg.repo_root)}  "
+        f"({subgraph.stat().st_size / 1024:.0f} KB, NOT served)"
+    )
+
+    _echo_header("Result")
+    typer.echo(f"  added     {len(fresh):,}")
+    typer.echo(f"  archive   {len(archive):,}  of an eventual {cfg.target_approved}")
+    typer.echo(f"  covers    {archive[0].date}  ->  {archive[-1].date}")
+    remaining = cfg.target_approved - len(archive)
+    if remaining > 0:
+        typer.secho(
+            f"\n  {remaining} to go. Review more, then run `linkage export` again.",
+            fg=typer.colors.GREEN,
+        )
+    typer.secho("\nNext:  pytest", fg=typer.colors.GREEN)
 
 
 @app.command()
