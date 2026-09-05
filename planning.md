@@ -885,31 +885,35 @@ Union WordNet hypernym/meronym chains, or the Wikipedia link graph, into the sam
 
 Built from ConceptNet 5.7 with the filters in §7.1–§7.3. **34,074,917 lines parsed in 3m18s, 0 malformed.**
 
+Measured twice: once with P99 degree pruning on, and again after it was removed (Risk #19). **SHIPPED is the right-hand column.**
+
 ```
-  graph -- SHIPPED (curated hubs only, degree pruning removed)
-    nodes                     7,625        edges          54,373
-    mean degree               14.26        median              9
-    max degree                  208        (animal)
+                              P99 pruning ON      SHIPPED (curated only)
+  nodes                              7,524                       7,625
+  edges                             46,795                      54,373
+  largest component          7,518 (99.9%)               7,619 (99.9%)
+  mean / median degree         12.44 /  8                  14.26 /  9
+  max degree                            77                 208 (animal)
+  avg clustering                    0.0839                      0.0912
+  transitivity                      0.0416                      0.0437
 
-  graph -- as first measured (P99 degree pruning ON)
-    nodes                     7,524        edges          46,795
-    components                    4        largest         7,518  (99.9%)
-    mean degree               12.44        median              8
-    max degree                   77
-    avg clustering           0.0839        transitivity   0.0416
+  edge weights  >= 1.5               19.8%                       20.6%
+                >= 2.0               18.7%                       19.4%
+                >= 2.5                5.0%                        5.6%
+                >= 3.0                3.4%                        3.9%
 
-  edge weight distribution
-    >= 1.5    19.8%          >= 2.5     5.0%
-    >= 2.0    18.7%          >= 3.0     3.4%
+  survival funnel        (25 seeds)          (10 seeds, same top-25 cap)
+    5-edge paths                  32,982,070                  17,113,447
+    no S-E edge          32,645,394 (99.0%)         16,962,778 (99.1%)
+    chordless            23,895,424 (73.2%)         11,554,863 (68.1%)
+    min weight >= 2.0        62,039  (0.3%)             45,734  (0.4%)
 
-  survival funnel  (25 seeds, top-25 neighbours per expansion)
-    5-edge paths          32,982,070
-    no S-E edge           32,645,394    99.0% of previous
-    chordless             23,895,424    73.2%   <-- expected ~7%
-    min weight >= 2.0         62,039     0.3%   <-- the actual killer
+  usable per 1,000 seeds         2,481,560                   4,573,400
 ```
 
-> The funnel above was measured on the P99-pruned graph. Removing the pruner made the graph **denser** (54,373 edges vs 46,795), which can only increase path counts — so every conclusion below holds with more headroom, not less. The one figure that could move is clustering, since the restored words are the well-connected ones; re-measure with `linkage diagnose` in Phase 2 rather than assuming.
+**Removing the pruner nearly doubled usable yield**, from 2.48M to 4.57M per 1,000 seeds. Both figures dwarf the §7.9.3 go/no-go threshold of 3.
+
+Clustering rose from 0.0839 to 0.0912 and chordless survival fell from 73.2% to 68.1% — exactly as predicted, since the restored words are precisely the well-connected ones. The effect is real, small, and paid for many times over by the extra density. **Chordless still costs ~32%, nowhere near the ~93% the plan originally assumed.**
 
 **Four conclusions, all of which change the plan:**
 
@@ -1369,7 +1373,7 @@ Actions:
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | 1 | **Generated puzzles are technically valid but not fun** | High | Fatal to the product | Hub-word removal (§7.3), chordless paths (§7.4), weight gating, tempting distractors (§7.6), and a human review gate (§7.7). This is the top risk and gets the most machinery. |
-| 2 | ~~**Yield collapse — constraint stack rejects nearly every path**~~ | ~~High~~ **CLOSED** | — | **Measured in Phase 1 (§7.9.5): ~2.5M usable paths per 1,000 seeds against a threshold of 3.** Chordless costs 27%, not the predicted 93%. No remedy tier needed. The ladder in §7.9.4 stays documented for any future tightening of the constraint set. |
+| 2 | ~~**Yield collapse — constraint stack rejects nearly every path**~~ | ~~High~~ **CLOSED** | — | **Measured twice in Phase 1 (§7.9.5): 4.57M usable paths per 1,000 seeds against a threshold of 3.** Chordless costs ~32%, not the predicted ~93%. No remedy tier needed for yield. The ladder in §7.9.4 stays documented for any future tightening of the constraint set. |
 | 3 | **Cross-language codec mismatch** | Medium | Client cannot read any puzzle | Python emits a fixture; the TS test decodes it. Wired in Phase 3 **before** anything depends on the codec. |
 | 4 | **`nx.write_gpickle` removed in NetworkX 3.0** | Certain | Phase 1 fails on first run | Documented in §7.2. Use `pickle.dump` directly. |
 | 5 | **`wordfreq` data drift between versions** | Medium | Vocabulary silently changes; puzzles unreproducible | Pin exactly; record the version in graph metadata; `generate` refuses a metadata mismatch. |
