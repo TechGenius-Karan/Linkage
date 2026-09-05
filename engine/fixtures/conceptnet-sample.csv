@@ -1,0 +1,17 @@
+/a/[/r/RelatedTo/,/c/en/apple/,/c/en/newton/]	/r/RelatedTo	/c/en/apple	/c/en/newton	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.4}
+/a/[/r/RelatedTo/,/c/en/newton/,/c/en/gravity/]	/r/RelatedTo	/c/en/newton	/c/en/gravity	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 3.1}
+/a/[/r/IsA/,/c/en/gravity/,/c/en/moon/]	/r/IsA	/c/en/gravity	/c/en/moon	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.8}
+/a/[/r/AtLocation/,/c/en/moon/,/c/en/tide/]	/r/AtLocation	/c/en/moon	/c/en/tide	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.2}
+/a/[/r/Causes/,/c/en/tide/,/c/en/ocean/]	/r/Causes	/c/en/tide	/c/en/ocean	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.9}
+/a/[/r/RelatedTo/,/c/en/apple/,/c/en/pie/]	/r/RelatedTo	/c/en/apple	/c/en/pie	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 1.5}
+/a/[/r/RelatedTo/,/c/fr/pomme/,/c/fr/fruit/]	/r/RelatedTo	/c/fr/pomme	/c/fr/fruit	{"dataset": "/d/conceptnet/4/fr", "license": "cc:by-sa/4.0", "weight": 2.0}
+/a/[/r/RelatedTo/,/c/en/apple/,/c/en/ice_cream/]	/r/RelatedTo	/c/en/apple	/c/en/ice_cream	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.0}
+/a/[/r/Antonym/,/c/en/apple/,/c/en/ocean/]	/r/Antonym	/c/en/apple	/c/en/ocean	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.0}
+/a/[/r/FormOf/,/c/en/apples/,/c/en/apple/]	/r/FormOf	/c/en/apples	/c/en/apple	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.0}
+/a/[/r/RelatedTo/,/c/en/apple/,/c/en/orbit/]	/r/RelatedTo	/c/en/apple	/c/en/orbit	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 0.5}
+/a/[/r/RelatedTo/,/c/en/apple/,/c/en/apple/]	/r/RelatedTo	/c/en/apple	/c/en/apple	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.0}
+this line is malformed	/r/RelatedTo	/c/en/apple
+/a/[/r/UsedFor/,/c/en/apple/,/c/en/pie/]	/r/UsedFor	/c/en/apple/n	/c/en/pie/n	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.0}
+/a/[/r/RelatedTo/,/c/en/apple/,/c/en/zzzunknown/]	/r/RelatedTo	/c/en/apple	/c/en/zzzunknown	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.0}
+/a/[/r/dbpedia/genre/,/c/en/apple/,/c/en/ocean/]	/r/dbpedia/genre	/c/en/apple	/c/en/ocean	{"dataset": "/d/dbpedia/en", "license": "cc:by-sa/4.0", "weight": 2.0}
+/a/[/r/SymbolOf/,/c/en/ocean/,/c/en/moon/]	/r/SymbolOf	/c/en/ocean	/c/en/moon	{"dataset": "/d/conceptnet/4/en", "license": "cc:by-sa/4.0", "weight": 2.1}

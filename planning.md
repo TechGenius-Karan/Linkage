@@ -562,6 +562,8 @@ Words like `thing`, `person`, `make`, `use`, `good`, `time` have enormous degree
 
 - [ ] Compute the degree distribution; **drop every node above the 99th percentile**.
 - [ ] Add an explicit hub blocklist for survivors that are still too generic.
+
+> ⚠️ **Phase 1 measurement says the percentile is the weaker half of this pair, and currently harmful.** At P99 it removed `animal`, `art`, `ball`, `bird`, `box`, `bridge` — good puzzle words whose only sin is being well-connected. The curated `GENERIC_HUBS` list catches the actual poison (`thing`, `object`, `stuff`) earlier, at the vocabulary stage. Risk #19; recommendation is to raise `HUB_PERCENTILE` to 99.9 or drop it entirely.
 - [ ] Prefer mid-frequency vocabulary: rank 500–8000. The top 500 are too generic to surprise; below 8000 is too obscure to be fair.
 
 ### 7.4 Pathfinding — Bidirectional Bounded BFS
@@ -731,7 +733,9 @@ A path must clear **five** filters simultaneously:
 
 **The problem is that these filters fight each other, and they fight the shape of the underlying data.**
 
-**Chords vs. clustering.** ConceptNet has a **high clustering coefficient** — the technical name for "friends of friends are usually also friends." If `A–B` and `B–C` exist, `A–C` very often exists too. That is not a flaw; it is what a real association graph looks like. But filter #3 demands the exact opposite: a locally *tree-like* neighbourhood with no shortcuts. **We are searching for tree-like structure inside a graph selected for being clumpy.** Most 5-edge paths we find will have a chord and be discarded.
+**Chords vs. clustering.** ConceptNet was expected to have a **high clustering coefficient** — the technical name for "friends of friends are usually also friends." If `A–B` and `B–C` exist, `A–C` very often exists too. Filter #3 demands the opposite: a locally *tree-like* neighbourhood with no shortcuts. The fear was that we would be searching for tree-like structure inside a graph selected for being clumpy, and that most 5-edge paths would carry a chord.
+
+> ⚠️ **Measured in Phase 1: this prediction was wrong.** The built graph's average clustering coefficient is **0.084**, and the chordless filter keeps **73%** of paths rather than killing 90%+. The relation whitelist and hub removal together produce a graph that is already locally tree-like. See §7.9.6 for the full measurement. The paragraph above is kept because the reasoning was sound and the conclusion was not — that is worth remembering the next time a structural claim goes into this document unmeasured.
 
 **The weight squeeze compounds multiplicatively.** The bulk of `RelatedTo` edges come from ConceptNet's `assoc` dataset at weight 1.0; an edge only reaches 2.0 when several independent sources corroborate it. If a fraction `p` of edges clear the gate, a path needs **all five** to clear it — roughly `p⁵`. At `p = 0.2` that is 0.03% of paths. At `p = 0.3`, 0.24%. A gate that sounds mild applied to one edge is savage applied to five.
 
@@ -868,11 +872,53 @@ class ConstructiveGrowthFinder: ...  # fallback — same interface, same output 
 
 Union WordNet hypernym/meronym chains, or the Wikipedia link graph, into the same `networkx.Graph`. Genuinely more code and a new parsing/normalisation problem. Only if Tiers 1–5 combined still fall short.
 
-#### 7.9.5 Summary
+#### 7.9.5 Measured Results (Phase 1, 2026-09-05)
 
-The risk is real and structural — it comes from ConceptNet's clustering fighting our chordless requirement, amplified by a five-fold multiplicative weight gate. It is also **well-understood, measurable in an afternoon, and has five independent remedies before anything drastic**. Tiers 1 and 2 alone should be worth one to two orders of magnitude of yield, and neither costs any puzzle quality — Tier 1 delegates a judgement to the human who was going to make it anyway, and Tier 2 keeps the uniqueness proof exactly intact.
+Built from ConceptNet 5.7 with the filters in §7.1–§7.3. **34,074,917 lines parsed in 3m18s, 0 malformed.**
 
-**Concrete action: build `linkage diagnose` first, in Phase 2, before the generator.**
+```
+  graph
+    nodes                     7,524        edges          46,795
+    components                    4        largest         7,518  (99.9%)
+    mean degree               12.44        median              8
+    max degree                   77
+    avg clustering           0.0839        transitivity   0.0416
+
+  edge weight distribution
+    >= 1.5    19.8%          >= 2.5     5.0%
+    >= 2.0    18.7%          >= 3.0     3.4%
+
+  survival funnel  (25 seeds, top-25 neighbours per expansion)
+    5-edge paths          32,982,070
+    no S-E edge           32,645,394    99.0% of previous
+    chordless             23,895,424    73.2%   <-- expected ~7%
+    min weight >= 2.0         62,039     0.3%   <-- the actual killer
+```
+
+**Four conclusions, all of which change the plan:**
+
+1. **Risk #2 is closed.** The §7.9.3 go/no-go threshold was 3 usable candidates per 1,000 seeds. Measured: **~2.5 million**. Yield is not the constraint and never was.
+2. **Chordless is cheap — keep it at `full`.** It costs 27%, not 93%. **§7.9.4 Tier 2 is unnecessary**; do not weaken the constraint or the uniqueness proof to buy yield we do not need.
+3. **The weight gate is the whole squeeze, exactly as the `p⁵` arithmetic predicted** (p = 0.187 → 0.023%; observed 0.3%, the gap being that path edges are not independent). **Tier 1 remains the right first lever** *if* one is ever needed — but with 62,039 survivors from 25 seeds, it is not needed. Leave `MIN_EDGE_WEIGHT = 2.0`. Note the cliff between 2.0 (18.7%) and 2.5 (5.0%): 2.0 sits on a natural boundary.
+4. **Tier 3 is now urgent, and for the reason it predicted.** P99 removed 75 words at `degree > 82`. They were: `animal, art, attack, ball, bar, base, bed, bill, bird, box, break, bridge, ...` — **these are good puzzle words, not generic noise.** The curated `GENERIC_HUBS` list already removes the actual poison (`thing`, `object`, `stuff`) at the vocabulary stage, so the degree percentile is now redundant *and* doing net harm. See Risk #19.
+
+**The risk has moved, not disappeared.** With ~2.5M candidate paths for 365 slots, the binding constraint is no longer *finding* paths but *choosing* them. `QualityScorer` and the human review gate are now the entire game — Risk #1, not Risk #2, is what this project lives or dies on.
+
+**One implementation consequence:** 25 seeds produced 33 million paths. The generator must **never enumerate exhaustively** — it needs early termination and per-seed budgets, or `generate` will run for hours producing candidates nobody will ever review.
+
+#### 7.9.6 Summary
+
+**Measured and closed (§7.9.5).** Yield came in at ~2.5 million usable paths per 1,000 seeds against a go/no-go threshold of 3. The clustering half of the thesis was wrong — chordless costs 27%, not 93% — while the `p⁵` weight arithmetic was exactly right, and is the only real squeeze. None of the six remedy tiers needs to be applied for yield.
+
+What survives from this analysis:
+
+- **Tier 3 is now a live action item** (Risk #19): degree-percentile pruning is removing good puzzle words and is redundant with the curated `GENERIC_HUBS` list.
+- **Tiers 1, 2, 4, 5, 6 stay documented but unused.** They are the ladder to climb if the constraint set ever tightens — for a longer chain, a stricter weight gate, or a smaller vocabulary.
+- **The `p⁵` arithmetic is the transferable lesson.** Any filter applied to all five path edges is savage even when it looks mild on one. Check that before adding a per-edge constraint.
+
+**The risk has moved to Risk #1.** With millions of candidates for 365 slots, finding paths is free and *choosing* them is everything. `QualityScorer` and the review gate now carry the project.
+
+**Concrete action: `linkage diagnose` still ships in Phase 2** — not to answer this question, which is answered, but so the funnel is re-measurable the moment any filter changes.
 
 ---
 
@@ -1307,7 +1353,7 @@ Actions:
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | 1 | **Generated puzzles are technically valid but not fun** | High | Fatal to the product | Hub-word removal (§7.3), chordless paths (§7.4), weight gating, tempting distractors (§7.6), and a human review gate (§7.7). This is the top risk and gets the most machinery. |
-| 2 | **Yield collapse — constraint stack rejects nearly every path** | **High** | Blocks Phase 2; worse, can silently bias the whole puzzle set | **See §7.9 for the full analysis.** Measure with `linkage diagnose` before building the generator, then climb the six-tier remedy ladder. Tiers 1–2 alone should recover 1–2 orders of magnitude at zero quality cost. |
+| 2 | ~~**Yield collapse — constraint stack rejects nearly every path**~~ | ~~High~~ **CLOSED** | — | **Measured in Phase 1 (§7.9.5): ~2.5M usable paths per 1,000 seeds against a threshold of 3.** Chordless costs 27%, not the predicted 93%. No remedy tier needed. The ladder in §7.9.4 stays documented for any future tightening of the constraint set. |
 | 3 | **Cross-language codec mismatch** | Medium | Client cannot read any puzzle | Python emits a fixture; the TS test decodes it. Wired in Phase 3 **before** anything depends on the codec. |
 | 4 | **`nx.write_gpickle` removed in NetworkX 3.0** | Certain | Phase 1 fails on first run | Documented in §7.2. Use `pickle.dump` directly. |
 | 5 | **`wordfreq` data drift between versions** | Medium | Vocabulary silently changes; puzzles unreproducible | Pin exactly; record the version in graph metadata; `generate` refuses a metadata mismatch. |
@@ -1324,6 +1370,8 @@ Actions:
 | 16 | **Not enough uniqueness-safe distractors for a puzzle** | Medium | Candidate discarded, yield drops further | Fall back to `BANK_SIZE = 10` (spec allows 10–12) before discarding the candidate (§7.9.4 Tier 4). |
 | 17 | **Midnight passes with the tab open** | Certain for some players | Progress written under yesterday's ID; stale board | Recompute the puzzle number on `visibilitychange`/`focus`; prompt rather than yank the board (§8.7). |
 | 18 | **Same-stem or overlapping words in one bank** | Medium | Looks sloppy; `moon` next to `moons` | Porter-stem comparison plus a substring check across the bank at selection time (§7.6). |
+| 19 | **Degree-percentile pruning is deleting good puzzle words** | **Confirmed in Phase 1** | Loses `animal`, `bird`, `bridge`, `box` — exactly the vocabulary the game is built on | P99 removed 75 words at `degree > 82`, nearly all of them good. The curated `GENERIC_HUBS` list already removes the real poison at the vocabulary stage, so the percentile is redundant and net-harmful. **Raise `HUB_PERCENTILE` to 99.9 or disable it and rely on the curated list** (§7.9.4 Tier 3, §7.9.5). Requires a graph rebuild — ~4 min, the dump is cached. |
+| 20 | **Generator enumerates paths exhaustively and never finishes** | High if unguarded | `generate` runs for hours producing candidates nobody will review | 25 seeds yielded 33M paths (§7.9.5). The generator needs per-seed budgets and early termination, not exhaustive enumeration. Design constraint for Phase 2. |
 
 ---
 
