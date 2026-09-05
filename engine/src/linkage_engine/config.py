@@ -107,6 +107,14 @@ class Config:
     max_paths_per_pair: int = 8
     distractor_pool_size: int = 120
 
+    #: How many decoys to draw from each temptingness band per cycle:
+    #: (hard, medium, easy). Taking the top-ranked decoys outright made every
+    #: bank maximally confusing -- measured at 95% of tiles wired to one side
+    #: of a slot, uniformly across good and bad puzzles alike. A bank needs
+    #: texture: a few tiles a player can dismiss on sight is what makes the
+    #: hard ones feel fair rather than arbitrary.
+    distractor_mix: tuple[int, int, int] = (3, 2, 1)
+
     # --- Curation (planning.md 7.7, 7.7.1) ---
     #: One month at a time. A year does not have to exist before launch, and
     #: pretending it does turns curation into a wall nobody climbs. Each

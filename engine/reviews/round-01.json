@@ -1,0 +1,736 @@
+{
+  "round": 1,
+  "reviewed": "2026-09-05",
+  "note": "Reviewer verdicts kept as DATA only. An approval here records taste, not a decision to schedule -- nothing in this file feeds export.",
+  "counts": {
+    "approved": 9,
+    "rejected": 16
+  },
+  "verdicts": [
+    {
+      "hash": "66898f743924cd8f",
+      "verdict": "approve",
+      "start": "shark",
+      "end": "fatigue",
+      "solution": [
+        "ocean",
+        "sailing",
+        "fun",
+        "dancing"
+      ],
+      "decoys": [
+        "wave",
+        "coast",
+        "toy",
+        "fish",
+        "earth",
+        "disco",
+        "sea"
+      ],
+      "weights": [
+        11.3,
+        6.6,
+        5.7,
+        4.5,
+        4.5
+      ],
+      "quality": 0.8065
+    },
+    {
+      "hash": "4ed045947dcb247e",
+      "verdict": "reject",
+      "start": "sensing",
+      "end": "lead",
+      "solution": [
+        "smell",
+        "telephone",
+        "desktop",
+        "pencil"
+      ],
+      "decoys": [
+        "lamp",
+        "drawer",
+        "nose",
+        "classroom",
+        "computer",
+        "writing",
+        "metal"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        2.0,
+        3.5,
+        3.1
+      ],
+      "quality": 0.7858
+    },
+    {
+      "hash": "3ee86018dccfa474",
+      "verdict": "reject",
+      "start": "den",
+      "end": "flare",
+      "solution": [
+        "dwelling",
+        "bedroom",
+        "mirror",
+        "reflection"
+      ],
+      "decoys": [
+        "wardrobe",
+        "pillow",
+        "blanket",
+        "closet",
+        "nest",
+        "bed",
+        "board"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        6.0,
+        4.2,
+        2.0
+      ],
+      "quality": 0.7813
+    },
+    {
+      "hash": "6c28ef93a3f9bb7f",
+      "verdict": "approve",
+      "start": "triangle",
+      "end": "perception",
+      "solution": [
+        "math",
+        "science",
+        "discovery",
+        "detection"
+      ],
+      "decoys": [
+        "physics",
+        "geometry",
+        "chemistry",
+        "division",
+        "biology",
+        "divide",
+        "study"
+      ],
+      "weights": [
+        4.0,
+        2.1,
+        2.0,
+        2.0,
+        2.0
+      ],
+      "quality": 0.7629
+    },
+    {
+      "hash": "161238f585a498e3",
+      "verdict": "reject",
+      "start": "art",
+      "end": "freeway",
+      "solution": [
+        "museum",
+        "europe",
+        "continent",
+        "america"
+      ],
+      "decoys": [
+        "mass",
+        "cars",
+        "land",
+        "africa",
+        "paint",
+        "asia",
+        "statue"
+      ],
+      "weights": [
+        4.9,
+        2.0,
+        4.3,
+        4.2,
+        4.5
+      ],
+      "quality": 0.7573
+    },
+    {
+      "hash": "844556ae05d12713",
+      "verdict": "approve",
+      "start": "whale",
+      "end": "wings",
+      "solution": [
+        "ocean",
+        "blue",
+        "sky",
+        "birds"
+      ],
+      "decoys": [
+        "cloud",
+        "sea",
+        "nest",
+        "shark",
+        "color",
+        "wave",
+        "feathers"
+      ],
+      "weights": [
+        2.8,
+        4.4,
+        10.8,
+        6.6,
+        3.5
+      ],
+      "quality": 0.7572
+    },
+    {
+      "hash": "c851d90ea4341fc9",
+      "verdict": "reject",
+      "start": "promise",
+      "end": "twilight",
+      "solution": [
+        "rainbow",
+        "sky",
+        "dark",
+        "evening"
+      ],
+      "decoys": [
+        "shade",
+        "afternoon",
+        "cloud",
+        "birds",
+        "star",
+        "blue",
+        "airplane"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        2.8,
+        2.7,
+        2.0
+      ],
+      "quality": 0.7565
+    },
+    {
+      "hash": "8cacf303019fbcdd",
+      "verdict": "reject",
+      "start": "nigeria",
+      "end": "disturbance",
+      "solution": [
+        "africa",
+        "continent",
+        "america",
+        "storm"
+      ],
+      "decoys": [
+        "europe",
+        "land",
+        "thunder",
+        "mass",
+        "freeway",
+        "asia",
+        "hurricane"
+      ],
+      "weights": [
+        2.0,
+        5.3,
+        4.2,
+        2.0,
+        2.0
+      ],
+      "quality": 0.756
+    },
+    {
+      "hash": "4cdbcf1d559f16d0",
+      "verdict": "approve",
+      "start": "intelligence",
+      "end": "wallet",
+      "solution": [
+        "learning",
+        "classroom",
+        "pencil",
+        "pocket"
+      ],
+      "decoys": [
+        "teacher",
+        "reading",
+        "students",
+        "keys",
+        "drawer",
+        "teaching",
+        "writing"
+      ],
+      "weights": [
+        2.8,
+        2.8,
+        4.5,
+        2.8,
+        6.4
+      ],
+      "quality": 0.7543
+    },
+    {
+      "hash": "9bbef2cd67db1033",
+      "verdict": "reject",
+      "start": "application",
+      "end": "bedroom",
+      "solution": [
+        "lining",
+        "insulation",
+        "isolation",
+        "privacy"
+      ],
+      "decoys": [
+        "pillow",
+        "wardrobe",
+        "blanket",
+        "bed",
+        "apartment",
+        "closet",
+        "mirror"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0
+      ],
+      "quality": 0.7525
+    },
+    {
+      "hash": "7ab05b27dd1af608",
+      "verdict": "approve",
+      "start": "compartment",
+      "end": "rubbish",
+      "solution": [
+        "stall",
+        "bathroom",
+        "toilet",
+        "waste"
+      ],
+      "decoys": [
+        "hotel",
+        "poop",
+        "barn",
+        "flush",
+        "garbage",
+        "horse",
+        "urine"
+      ],
+      "weights": [
+        2.0,
+        3.5,
+        7.2,
+        2.0,
+        3.9
+      ],
+      "quality": 0.7493
+    },
+    {
+      "hash": "7fef8371334c02ca",
+      "verdict": "reject",
+      "start": "science",
+      "end": "capitalist",
+      "solution": [
+        "mathematics",
+        "geometry",
+        "square",
+        "conservative"
+      ],
+      "decoys": [
+        "biology",
+        "circle",
+        "chemistry",
+        "physics",
+        "box",
+        "triangle",
+        "round"
+      ],
+      "weights": [
+        2.0,
+        3.5,
+        2.0,
+        2.0,
+        2.0
+      ],
+      "quality": 0.7492
+    },
+    {
+      "hash": "86b9c3d6062f81c7",
+      "verdict": "reject",
+      "start": "intelligence",
+      "end": "map",
+      "solution": [
+        "learning",
+        "literature",
+        "books",
+        "backpack"
+      ],
+      "decoys": [
+        "page",
+        "writing",
+        "shelf",
+        "listening",
+        "words",
+        "notebook",
+        "desk"
+      ],
+      "weights": [
+        2.8,
+        2.8,
+        4.7,
+        5.7,
+        2.0
+      ],
+      "quality": 0.7479
+    },
+    {
+      "hash": "32768b1884519680",
+      "verdict": "reject",
+      "start": "zombie",
+      "end": "chair",
+      "solution": [
+        "monster",
+        "bed",
+        "dust",
+        "desk"
+      ],
+      "decoys": [
+        "notebook",
+        "telephone",
+        "mattress",
+        "feet",
+        "sitting",
+        "seat",
+        "sleeping"
+      ],
+      "weights": [
+        4.0,
+        4.0,
+        6.0,
+        4.0,
+        6.6
+      ],
+      "quality": 0.7473
+    },
+    {
+      "hash": "d5f5aff1bcf46efa",
+      "verdict": "reject",
+      "start": "feet",
+      "end": "actors",
+      "solution": [
+        "shoes",
+        "bed",
+        "platform",
+        "stage"
+      ],
+      "decoys": [
+        "furniture",
+        "mattress",
+        "sleeping",
+        "desk",
+        "toes",
+        "cat",
+        "chair"
+      ],
+      "weights": [
+        4.3,
+        4.5,
+        4.4,
+        6.6,
+        5.1
+      ],
+      "quality": 0.7465
+    },
+    {
+      "hash": "dff0dd00e3d5a5c0",
+      "verdict": "approve",
+      "start": "movies",
+      "end": "yellow",
+      "solution": [
+        "seats",
+        "cars",
+        "oil",
+        "gold"
+      ],
+      "decoys": [
+        "liquid",
+        "silver",
+        "tin",
+        "corn",
+        "steel",
+        "drink",
+        "iron"
+      ],
+      "weights": [
+        4.0,
+        2.0,
+        3.4,
+        4.2,
+        3.7
+      ],
+      "quality": 0.7454
+    },
+    {
+      "hash": "29b3794d242398f3",
+      "verdict": "approve",
+      "start": "farewell",
+      "end": "toilet",
+      "solution": [
+        "departure",
+        "exit",
+        "door",
+        "apartment"
+      ],
+      "decoys": [
+        "entrance",
+        "gate",
+        "opening",
+        "entry",
+        "building",
+        "window",
+        "handle"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        3.8,
+        2.8,
+        2.0
+      ],
+      "quality": 0.7447
+    },
+    {
+      "hash": "a2d749580f23551d",
+      "verdict": "reject",
+      "start": "automobile",
+      "end": "disturbance",
+      "solution": [
+        "trunk",
+        "bark",
+        "noise",
+        "splash"
+      ],
+      "decoys": [
+        "voice",
+        "clothing",
+        "sound",
+        "elephant",
+        "dog",
+        "thunder",
+        "tree"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0
+      ],
+      "quality": 0.7442
+    },
+    {
+      "hash": "25b780e41626720f",
+      "verdict": "reject",
+      "start": "reflection",
+      "end": "rotation",
+      "solution": [
+        "mirror",
+        "bedroom",
+        "pillow",
+        "feather"
+      ],
+      "decoys": [
+        "bird",
+        "blanket",
+        "bed",
+        "board",
+        "wardrobe",
+        "closet",
+        "floor"
+      ],
+      "weights": [
+        4.2,
+        6.0,
+        4.0,
+        2.0,
+        2.0
+      ],
+      "quality": 0.744
+    },
+    {
+      "hash": "137e730efcd479de",
+      "verdict": "approve",
+      "start": "procedure",
+      "end": "thinking",
+      "solution": [
+        "proceeding",
+        "hearing",
+        "listening",
+        "learning"
+      ],
+      "decoys": [
+        "studying",
+        "sound",
+        "brain",
+        "ideas",
+        "ear",
+        "reading",
+        "operation"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        4.0,
+        4.9,
+        2.0
+      ],
+      "quality": 0.7433
+    },
+    {
+      "hash": "173d38ae51e7771b",
+      "verdict": "reject",
+      "start": "store",
+      "end": "northwest",
+      "solution": [
+        "bread",
+        "sandwich",
+        "western",
+        "west"
+      ],
+      "decoys": [
+        "eating",
+        "roll",
+        "wheat",
+        "town",
+        "department",
+        "yeast",
+        "clothes"
+      ],
+      "weights": [
+        4.0,
+        4.7,
+        2.0,
+        2.0,
+        2.0
+      ],
+      "quality": 0.7432
+    },
+    {
+      "hash": "fa7037ed55fd4f53",
+      "verdict": "approve",
+      "start": "cent",
+      "end": "walls",
+      "solution": [
+        "dollar",
+        "green",
+        "colour",
+        "paint"
+      ],
+      "decoys": [
+        "apple",
+        "liquid",
+        "blue",
+        "plant",
+        "currency",
+        "art",
+        "orange"
+      ],
+      "weights": [
+        5.1,
+        3.5,
+        4.0,
+        5.5,
+        6.5
+      ],
+      "quality": 0.7421
+    },
+    {
+      "hash": "244dbb73a0cb81a5",
+      "verdict": "reject",
+      "start": "mother",
+      "end": "ring",
+      "solution": [
+        "yeast",
+        "bread",
+        "cake",
+        "wedding"
+      ],
+      "decoys": [
+        "jewelry",
+        "finger",
+        "desert",
+        "sweet",
+        "birthday",
+        "candles",
+        "dessert"
+      ],
+      "weights": [
+        2.0,
+        4.9,
+        4.0,
+        3.9,
+        5.0
+      ],
+      "quality": 0.7398
+    },
+    {
+      "hash": "914f26dab7c660bf",
+      "verdict": "reject",
+      "start": "drunk",
+      "end": "wheat",
+      "solution": [
+        "bar",
+        "drinks",
+        "dinner",
+        "bread"
+      ],
+      "decoys": [
+        "roll",
+        "eating",
+        "plate",
+        "pub",
+        "alcohol",
+        "meal",
+        "soap"
+      ],
+      "weights": [
+        4.5,
+        5.9,
+        3.5,
+        3.5,
+        5.8
+      ],
+      "quality": 0.7398
+    },
+    {
+      "hash": "8939bad23d5e747e",
+      "verdict": "reject",
+      "start": "exhibition",
+      "end": "restraint",
+      "solution": [
+        "fair",
+        "ride",
+        "bicycle",
+        "chain"
+      ],
+      "decoys": [
+        "street",
+        "racing",
+        "horse",
+        "garage",
+        "carnival",
+        "metal",
+        "wheel"
+      ],
+      "weights": [
+        2.0,
+        2.0,
+        2.0,
+        3.5,
+        2.0
+      ],
+      "quality": 0.7394
+    }
+  ]
+}

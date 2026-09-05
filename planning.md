@@ -727,6 +727,46 @@ Reviewing ~800 candidates at a few seconds each is roughly two evenings of work,
 
 > **`--count 800` is a starting guess, not a plan.** If the acceptance rate turns out to be 20%, 800 candidates yields 160 approved — well short of 365. `generate` therefore accepts `--until-approved 365` and tops up from a new seed offset, skipping any candidate whose content hash already has a decision. Never assume one pass is enough; the real number is unknown until the first review session is done.
 
+### 7.7.3 Review Round 1 — What the Reviewer's Verdicts Showed
+
+25 candidates, judged by hand. **9 approved, 16 rejected — a 36% hit rate.** Raw verdicts live in `engine/reviews/round-01.json`.
+
+**The quality score has almost no predictive power.**
+
+| Signal | Approved | Rejected |
+|---|---:|---:|
+| **`quality` score** | **0.76** | **0.75** |
+| Mean edge weight | 4.00 | 3.28 |
+| Weakest link in the chain | 2.62 | 2.36 |
+| Spread between mean and weakest | 1.38 | 0.91 |
+
+The scorer this document spends a whole section tuning separates the reviewer's *yes* from their *no* by **one hundredth of a point**. Raw edge strength does discriminate; the composite built on top of it does not.
+
+Two components look actively wrong:
+
+- **`step_balance` is backwards.** It rewards even chains, but approved puzzles had *more* spread between their strongest and weakest link (1.38 vs 0.91). A chain with strong anchors and one real leap is the shape people liked — which is, on reflection, what an "aha" is.
+- **`specificity` and `endpoint_distance` cost weight** that the evidence says belongs to plain edge strength.
+
+**Do not retune from these numbers.** 25 verdicts is a small sample from one reviewer, and the honest conclusion is that the scorer should be rebuilt from accumulated verdicts once there are a few hundred — not re-guessed. Its job is ordering a queue, and a queue ordered barely better than chance is still a queue.
+
+#### The banks were uniformly too hard
+
+The reviewer's report: *"all the puzzles have extremely difficult word bank options, the options are too close and potentially can be a replacement."*
+
+Measured: **95% of every bank was a decoy wired to one side of a solution slot** — and identically so in approved and rejected puzzles (6.56 vs 6.75 of 7). It never surfaced as a quality signal because it was not a difference between puzzles; it was *every* puzzle.
+
+The cause was `DistractorSelector` taking the **top-ranked** decoys by temptingness. Every bank was maximally confusing by construction.
+
+> Uniqueness guarantees no decoy actually fits (§7.6) — the golden test proves zero fully-substitutable decoys across all 25. **But a player cannot see that.** A tile attached to one side of a slot looks like it belongs there, and costs a life to disprove. Provable uniqueness and *perceived* uniqueness are different properties, and only the first one was being engineered.
+
+**Fix:** `DISTRACTOR_MIX` draws across hard / medium / easy bands instead of skimming the top. A bank needs texture — a few tiles dismissible on sight are what make the genuinely hard ones feel fair rather than arbitrary.
+
+#### Open items from this round
+
+- [ ] **Approval must not imply scheduling.** A verdict records taste; scheduling is a separate, later decision. Round 1 verdicts are deliberately stored as data and feed nothing. `export` currently reads `decisions.json` and treats *accept* as ready-to-ship — that coupling needs breaking.
+- [ ] **Structured rejection reasons.** The reviewer's most useful observation was that a single bad link ruined otherwise-good chains. Letting a reviewer say *which* link failed, and feeding that back into generation, is worth far more than any heuristic guessed from here. To be designed.
+- [ ] **Rebuild `QualityScorer` from verdicts** once several hundred exist.
+
 ### 7.7.2 Quality Scoring — What 900 Real Candidates Taught Us
 
 `QualityScorer` orders the review queue. It is not a taste oracle and does not
@@ -1532,6 +1572,8 @@ Actions:
 | 18 | **Same-stem or overlapping words in one bank** | Medium | Looks sloppy; `moon` next to `moons` | Porter-stem comparison plus a substring check across the bank at selection time (§7.6). |
 | 19 | ~~**Degree-percentile pruning is deleting good puzzle words**~~ | ~~Confirmed~~ **RESOLVED** | — | **Automatic pruning removed; the curated `GENERIC_HUBS` list does this job** (§7.3). All 75 words restored, `animal` through `bridge`. Degree is the wrong signal — it measures connectedness, not genericness. `build-graph` still reports the top 40 by degree as candidates for the curated list. |
 | 20 | ~~**Generator enumerates paths exhaustively and never finishes**~~ | ~~High~~ **RESOLVED** | — | Per-pair path budget (`MAX_PATHS_PER_PAIR`) plus a pair budget, and one puzzle per endpoint pair. 900 candidates now come from 2,679 pairs in ~4 minutes. |
+| 22 | **Scorer barely predicts reviewer taste** | **Confirmed, round 1** | The review queue is ordered little better than chance | 0.76 vs 0.75 between approved and rejected (§7.7.3). Rebuild `QualityScorer` from accumulated verdicts once several hundred exist — not from fresh guesses. Ordering a queue badly still yields a working queue, so this is a quality-of-life defect, not a blocker. |
+| 23 | **Provable uniqueness ≠ perceived uniqueness** | **Confirmed, round 1** | Banks felt unfair even though every puzzle was provably unique | 95% of decoys were wired to one side of a slot. `DISTRACTOR_MIX` now spreads the draw across temptingness bands (§7.7.3). |
 | 21 | ~~**Review burden is ~3× the plan's estimate**~~ | ~~Confirmed~~ **RESOLVED** | — | **The archive grows a month at a time** (§7.7.1). Launch needs ~40 approved candidates, not 2,500; `export` appends batches and diversity spans the whole archive so later months cannot reuse earlier vocabulary. Raising `MAX_WORD_REUSE` to 5 remains available if even monthly feels heavy. |
 
 ---
@@ -1649,6 +1691,7 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | `MIN_ENDPOINT_DEGREE` | 5 | A degree-1 endpoint has one possible neighbour and makes a forced rung. |
 | `MAX_PATHS_PER_PAIR` | 8 | Per-pair search budget. Risk #20 -- 25 seeds once produced 33M paths. |
 | `DISTRACTOR_POOL_SIZE` | 120 | Candidates each strategy proposes before ranking. |
+| `DISTRACTOR_MIX` | (3, 2, 1) | Decoys drawn per cycle from the hard / medium / easy bands. Skimming the top made 95% of every bank a near-miss (§7.7.3). |
 | `BANK_SIZE_MIN` | 10 | Fallback when too few uniqueness-safe distractors exist (Risk #16). |
 | `HUB_DEGREE` (scoring) | 100 | Degree at which a step counts as fully generic (§7.7.2). |
 | `BATCH_SIZE` | 30 | Puzzles added per `export` -- about a month. The archive grows incrementally (§7.7.1). |

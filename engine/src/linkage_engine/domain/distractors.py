@@ -206,6 +206,39 @@ class DistractorSelector:
                     best[candidate.word] = candidate
         return sorted(best.values(), key=lambda s: (-s.temptingness, s.word))
 
+    def consideration_order(self, pool: list[ScoredWord]) -> list[ScoredWord]:
+        """Interleave the ranked pool across temptingness bands.
+
+        The pool arrives sorted hardest-first, and taking the top slice
+        outright produced banks where every single tile was a near-miss --
+        measured at 95% of decoys wired to one side of a solution slot, with
+        no difference between puzzles reviewers liked and ones they rejected.
+        It was not a quality signal; it was every bank.
+
+        Uniqueness guarantees no decoy *actually* fits, but a player cannot
+        see that. A tile attached to one side of a slot looks like it belongs
+        there and costs a life to disprove. Spreading the draw across hard,
+        medium and easy bands gives a bank texture: some tiles can be
+        dismissed on sight, which is what makes the genuinely hard ones feel
+        fair rather than arbitrary.
+        """
+        if len(pool) < 6:
+            return list(pool)
+
+        third = len(pool) // 3
+        bands = [pool[:third], pool[third : 2 * third], pool[2 * third :]]
+        take = self.cfg.distractor_mix
+        cursors = [0, 0, 0]
+        order: list[ScoredWord] = []
+
+        while any(cursors[i] < len(bands[i]) for i in range(3)):
+            for band in range(3):
+                for _ in range(take[band]):
+                    if cursors[band] < len(bands[band]):
+                        order.append(bands[band][cursors[band]])
+                        cursors[band] += 1
+        return order
+
     def build_bank(self, graph: nx.Graph, path: Path) -> tuple[str, ...] | None:
         """Solution words plus the most tempting *safe* distractors.
 
@@ -217,7 +250,7 @@ class DistractorSelector:
         bank: set[str] = set(solution)
         forbidden = set(path.nodes)
 
-        for candidate in self.pool(graph, path):
+        for candidate in self.consideration_order(self.pool(graph, path)):
             if len(bank) >= self.cfg.bank_size:
                 break
             word = candidate.word

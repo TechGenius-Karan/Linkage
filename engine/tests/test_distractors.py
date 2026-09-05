@@ -226,6 +226,40 @@ def test_a_decoy_may_not_be_a_substring_of_an_endpoint():
     assert "star" not in bank
 
 
+def test_consideration_order_spreads_across_bands():
+    """Hardest-first ordering made every bank maximally confusing (95% of
+    tiles wired to one side of a slot). The draw now mixes bands."""
+    from linkage_engine.domain.distractors import ScoredWord
+
+    pool = [ScoredWord(f"w{i}", 100.0 - i, "near-miss") for i in range(30)]
+    order = DistractorSelector(CFG, IdentityStemmer()).consideration_order(pool)
+
+    assert sorted(w.word for w in order) == sorted(w.word for w in pool)
+    # The first cycle takes 3 hard, 2 medium, 1 easy -- so an easy-band word
+    # must appear before the hard band is exhausted.
+    first_six = [w.word for w in order[:6]]
+    assert "w20" in first_six or "w21" in first_six, first_six
+    assert order[0].word == "w0", "hardest candidate should still lead"
+
+
+def test_consideration_order_leaves_tiny_pools_alone():
+    from linkage_engine.domain.distractors import ScoredWord
+
+    pool = [ScoredWord(f"w{i}", 10.0 - i, "near-miss") for i in range(4)]
+    order = DistractorSelector(CFG, IdentityStemmer()).consideration_order(pool)
+    assert [w.word for w in order] == [w.word for w in pool]
+
+
+def test_consideration_order_is_deterministic():
+    from linkage_engine.domain.distractors import ScoredWord
+
+    pool = [ScoredWord(f"w{i}", 100.0 - i, "near-miss") for i in range(30)]
+    sel = DistractorSelector(CFG, IdentityStemmer())
+    assert [w.word for w in sel.consideration_order(pool)] == [
+        w.word for w in sel.consideration_order(pool)
+    ]
+
+
 def test_build_bank_is_deterministic():
     g = _wide_graph()
     selector = DistractorSelector(CFG, IdentityStemmer())
