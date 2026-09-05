@@ -81,6 +81,41 @@ class Config:
     #: Highest-degree words shown after a build, as blocklist candidates.
     hub_report_top_n: int = 40
 
+    # --- Puzzle shape (planning.md 2.1-2.3) ---
+    chain_length: int = 4  # intermediate words; structural
+    bank_size: int = 11  # spec allows 10-12
+    #: Fallback when too few uniqueness-safe distractors exist (Risk #16).
+    bank_size_min: int = 10
+
+    # --- Pathfinding (planning.md 7.4) ---
+    #: Gate on the path's *weakest* edge. One weak link is what makes a chain
+    #: feel unfair, so this is a min, not a mean.
+    min_edge_weight: float = 2.0
+    bfs_top_k: int = 40
+    #: Full chordless. planning.md 7.9.4 Tier 2 describes a weaker "minimal"
+    #: mode that preserves the same uniqueness proof; it is deliberately NOT
+    #: implemented, because Phase 1 measured chordless at ~32% cost rather
+    #: than the feared ~93%. Tier 2 exists to buy yield we do not need.
+    enforce_chordless: bool = True
+    #: Endpoints need room to breathe -- a degree-1 word has exactly one
+    #: possible neighbour and makes a forced, joyless rung.
+    min_endpoint_degree: int = 5
+
+    # --- Generation budgets (Risk #20) ---
+    # 25 seeds produced 33M paths in the Phase 1 probe. Exhaustive
+    # enumeration is not an option; these cap the work per endpoint pair.
+    max_paths_per_pair: int = 8
+    distractor_pool_size: int = 120
+
+    # --- Curation (planning.md 7.7, 7.7.1) ---
+    target_approved: int = 365
+    max_word_reuse: int = 3
+    launch_week_size: int = 7
+
+    # --- Export (planning.md 3.1, 3.3) ---
+    schema_version: int = 1
+    epoch_date: str = "2026-10-01"
+
     # --- Reproducibility (planning.md 7.8) ---
     seed: int = 20_261_001
 
@@ -111,20 +146,72 @@ class Config:
     def graph_path(self) -> Path:
         return self.data_dir / "linkage-graph.gpickle"
 
-    def fingerprint(self) -> str:
-        """Stable hash of every field that changes the built graph.
+    @property
+    def engine_dir(self) -> Path:
+        return self.repo_root / "engine"
 
-        Stamped into graph metadata so `generate` can refuse to run against a
-        graph built under different settings (planning.md 7.8).
+    @property
+    def candidates_path(self) -> Path:
+        return self.engine_dir / "candidates.json"
+
+    @property
+    def decisions_path(self) -> Path:
+        """Review verdicts, keyed by content hash so re-generating never
+        discards a judgement already made (planning.md 7.7)."""
+        return self.engine_dir / "decisions.json"
+
+    @property
+    def fixtures_dir(self) -> Path:
+        """Committed, but never served -- it holds a plaintext answer key."""
+        return self.engine_dir / "fixtures"
+
+    @property
+    def subgraph_path(self) -> Path:
+        return self.fixtures_dir / "verification-subgraph.json"
+
+    @property
+    def codec_fixture_path(self) -> Path:
+        return self.fixtures_dir / "codec-fixture.json"
+
+    @property
+    def puzzles_dir(self) -> Path:
+        return self.repo_root / "web" / "public" / "puzzles"
+
+    def fingerprint(self) -> str:
+        """Stable hash of the fields that change the built graph.
+
+        Stamped into graph metadata so a stale cache is detected rather than
+        silently reused (planning.md 7.8).
+
+        Deliberately an **allowlist**, not "everything except repo_root".
+        Hashing every field meant that adding a puzzle-shape constant like
+        `bank_size` invalidated a graph those constants cannot possibly
+        affect -- and a warning that fires when nothing is wrong is a warning
+        people learn to ignore.
         """
-        payload = {
-            k: v
-            for k, v in asdict(self).items()
-            # repo_root is machine-specific and must not affect the fingerprint
-            if k != "repo_root"
-        }
+        fields = asdict(self)
+        payload = {k: fields[k] for k in sorted(GRAPH_AFFECTING_FIELDS)}
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+#: The only fields whose value changes the contents of the built graph.
+#: Everything else -- puzzle shape, search budgets, curation targets, export
+#: settings -- is consumed downstream and leaves the graph untouched.
+GRAPH_AFFECTING_FIELDS: frozenset[str] = frozenset(
+    {
+        "vocab_fetch_n",
+        "vocab_target",
+        "vocab_min_rank",
+        "word_min_len",
+        "word_max_len",
+        "min_graph_edge_weight",
+        "hub_percentile",
+        "conceptnet_version",
+        "conceptnet_url",
+        "conceptnet_sha256",
+    }
+)
 
 
 DEFAULT = Config()

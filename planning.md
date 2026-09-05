@@ -665,6 +665,13 @@ Ranked by **temptingness** = edge weight to the nearest solution word × frequen
 - [ ] **No two bank words share a stem.** `moon` and `moons`, `sail` and `sailing`. The `FormOf`/`DerivedFrom` blocklist keeps these out of the *graph edges*, but nothing stops both landing in the same *bank*. Check with a cheap Porter stem comparison across the whole bank.
 - [ ] **No bank word is a substring of another** where the shorter is ≥ 4 characters (`art` / `heart` is fine; `star` / `stars` is not — already caught by the stem rule, but this catches compounds the stemmer misses).
 
+> ⚠️ **Both checks must include the endpoints, not just the bank.** Found by
+> reading real output: `IRELAND → … → BRANCHES` shipped `branch` as a decoy,
+> and `… → WALLS` shipped `wall`. The start and end words sit on screen for
+> the whole game, so a decoy echoing one of them is *more* visible than two
+> decoys echoing each other — and comparing candidates against the bank alone
+> misses exactly that case.
+
 ### 7.7 Human Curation — Generate Surplus, Then Review *(decided)*
 
 **ConceptNet is noisy, and algorithmically valid is not the same as fun.** The chain `cat → animal → thing → object → box` passes every automated check in this document and is still a bad puzzle. The heuristics in §7.3–§7.6 raise the hit rate substantially; they do not reach 100%, and nothing that operates purely on graph structure will.
@@ -696,6 +703,49 @@ The `review` TUI:
 Reviewing ~800 candidates at a few seconds each is roughly two evenings of work, and it is the difference between a game people share and one they quit on day three. Accept/reject decisions are keyed by a content hash, so re-running `generate` never loses prior judgements.
 
 > **`--count 800` is a starting guess, not a plan.** If the acceptance rate turns out to be 20%, 800 candidates yields 160 approved — well short of 365. `generate` therefore accepts `--until-approved 365` and tops up from a new seed offset, skipping any candidate whose content hash already has a decision. Never assume one pass is enough; the real number is unknown until the first review session is done.
+
+### 7.7.2 Quality Scoring — What 900 Real Candidates Taught Us
+
+`QualityScorer` orders the review queue. It is not a taste oracle and does not
+try to be; a person still makes every call. But the ordering decides which
+puzzles a reviewer sees while they are still fresh, so getting it backwards is
+expensive.
+
+The first 900 real candidates showed it *was* backwards:
+
+```
+  0.91   SHARK -> ocean -> sailing -> fun -> dancing -> FATIGUE      (mush)
+  0.57   PROPOSITION -> statement -> answer -> reply -> echo -> REFLECTION
+                                                                    (elegant)
+```
+
+**The cause is the Phase 1 hub lesson wearing a different hat.** ConceptNet's
+edge weight measures how **obvious** a link is, not how **good** it is. Vague,
+highly-connected words earn strong edges precisely by co-occurring with
+everything — so a scorer weighted mostly on edge strength selects for banality
+and calls it confidence.
+
+> **A word connected to everything connects two ideas only in the way that any
+> two ideas are connected.** `ocean -> sailing -> fun -> dancing` has a strong
+> edge at every hop and says nothing.
+
+The fix is a **specificity** component: penalise chains whose steps are
+high-degree. Degree was the wrong signal for *deleting* a word in Phase 1
+(`bird` is rich *and* popular, Risk #19) but it is a fair signal for suspecting
+a whole chain of vagueness when every rung is a hub.
+
+| Component | Weight | What it rewards |
+|---|---:|---|
+| `specificity` | 0.30 | Steps that are concepts, not categories |
+| `weakest_link` | 0.20 | No unfair rung — gates on the minimum, never the mean |
+| `endpoint_distance` | 0.20 | `apple -> ocean` is a puzzle; `apple -> fruit` is a definition |
+| `relation_variety` | 0.15 | Mixed IsA/AtLocation/Causes reads as reasoning, not co-occurrence |
+| `overall_strength` | 0.10 | Geometric mean, so one strong edge cannot mask four weak ones |
+| `step_balance` | 0.05 | Steady chains feel like a path, not one hop plus four guesses |
+
+Weights sum to 1.0 so `quality` reads as a fraction. The per-component
+breakdown is stored with every candidate — when the queue fills with bad
+puzzles, it is the only way to tell *which* component is mis-weighted.
 
 ### 7.7.1 Corpus-Level Quality Control
 
@@ -1430,6 +1480,9 @@ Completeness check: **every problem named anywhere in this document, and where i
 | One weak link makes a chain feel unfair | Gate on the path's **minimum** edge weight, not the mean | §7.4 |
 | Distractors nobody would pick add no difficulty | Three ranked strategies scored by *temptingness* | §7.6 |
 | `moon` and `moons` in the same bank | Porter-stem + substring check across the bank | §7.6 |
+| A decoy echoing an **endpoint** (`branch` under `BRANCHES`) | The same checks, extended to include start and end — the endpoints are on screen all game | §7.6 |
+| Scorer ranks vague chains above elegant ones | `specificity` component: edge weight measures how *obvious* a link is, not how *good* | §7.7.2 |
+| Generator enumerates forever | Per-pair path budget and a pair budget; one puzzle per endpoint pair | §7.4, Risk #20 |
 | Algorithmically valid ≠ fun | Human review gate over a generated surplus | §7.7 |
 | A word appears in forty puzzles; the year feels small | `MAX_WORD_REUSE = 3`, enforced at export | §7.7.1 |
 | Duplicate `(start, end)` pairs or repeated chains | Corpus-level QC, fails export loudly | §7.7.1 |
@@ -1501,6 +1554,11 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | `HUB_REPORT_TOP_N` | 40 | Highest-degree words printed after a build, as curated-list candidates. |
 | `ENFORCE_CHORDLESS` | `full` | `full` \| `minimal` \| `off` — see §7.9.4 Tier 2. `minimal` keeps the uniqueness proof intact. |
 | `MAX_WORD_REUSE` | 3 | Times any word may appear across the whole year (§7.7.1). |
+| `MIN_ENDPOINT_DEGREE` | 5 | A degree-1 endpoint has one possible neighbour and makes a forced rung. |
+| `MAX_PATHS_PER_PAIR` | 8 | Per-pair search budget. Risk #20 -- 25 seeds once produced 33M paths. |
+| `DISTRACTOR_POOL_SIZE` | 120 | Candidates each strategy proposes before ranking. |
+| `BANK_SIZE_MIN` | 10 | Fallback when too few uniqueness-safe distractors exist (Risk #16). |
+| `HUB_DEGREE` (scoring) | 100 | Degree at which a step counts as fully generic (§7.7.2). |
 | `TARGET_APPROVED` | 365 | `generate --until-approved` tops up until this many are accepted. |
 | `LAUNCH_WEEK_SIZE` | 7 | Hand-picked easy puzzles at the front of the archive (§7.7.1). |
 | `SEED` | 20261001 | Any change re-rolls every puzzle. |
@@ -1527,6 +1585,9 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | Answer-key fixture location | **`engine/fixtures/`** | `web/public/puzzles/` | It is unobfuscated and would undo §3.2 if served. |
 | Puzzle repetition control | **Corpus-level QC at export** | Per-puzzle checks only | 365 individually-good puzzles can still make a bad year. |
 | Hub-word removal | **Curated `GENERIC_HUBS` list only** | P99 degree pruning; P99.9 as a compromise | Measured in Phase 1: degree tracks connectedness, genericness is what ruins a puzzle, and they are different properties. P99 deleted `animal`, `bird`, `bridge`. A threshold cannot make this call; a person can, and only a handful of words need it. The ranking is still *reported* as curation input. |
+| Uniqueness solver | **`itertools.permutations`, per the plan** | Hand-rolled pruned DFS | Costed it before optimising: the incremental bank build runs ~57k permutations per puzzle, about 60ms. A DFS would be faster and buy nothing. A fuzz test checks it against the plan's reference code on 40 random graphs. |
+| Chordless mode | **Boolean `full` / `off`** | The three-way `full`/`minimal`/`off` in §7.9.4 Tier 2 | Tier 2 exists to buy yield. Phase 1 measured chordless at ~32% cost, not the feared ~93%, so `minimal` is unimplemented — YAGNI, and the plan's own guidance says drop to it only if diagnose demands it. |
+| Scorer emphasis | **`specificity` at 0.30, strength cut to 0.30 combined** | Edge strength dominant | Reading 900 real candidates: strength-led scoring put mush at 0.91 and an elegant chain dead last at 0.57 (§7.7.2). |
 
 ---
 

@@ -108,17 +108,49 @@ def test_fingerprint_ignores_machine_specific_paths(tmp_path):
 @pytest.mark.parametrize(
     "field, value",
     [
+        ("vocab_fetch_n", 999),
         ("vocab_target", 999),
+        ("vocab_min_rank", 1),
         ("hub_percentile", 95.0),
         ("min_graph_edge_weight", 2.0),
-        ("seed", 1),
         ("word_max_len", 20),
+        ("conceptnet_url", "https://example.invalid/dump.gz"),
     ],
 )
-def test_fingerprint_changes_when_a_generation_knob_changes(field, value):
+def test_fingerprint_changes_when_a_graph_affecting_knob_changes(field, value):
     from dataclasses import replace
 
     assert replace(Config(), **{field: value}).fingerprint() != Config().fingerprint()
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("bank_size", 12),
+        ("chain_length", 5),
+        ("min_edge_weight", 3.0),
+        ("enforce_chordless", False),
+        ("target_approved", 100),
+        ("seed", 1),
+        ("epoch_date", "2030-01-01"),
+    ],
+)
+def test_fingerprint_ignores_knobs_the_graph_cannot_see(field, value):
+    """A warning that fires when nothing is wrong is a warning people learn
+    to ignore. Puzzle shape and search budgets are consumed downstream and
+    leave the built graph untouched, so they must not invalidate it."""
+    from dataclasses import replace
+
+    assert replace(Config(), **{field: value}).fingerprint() == Config().fingerprint()
+
+
+def test_every_graph_affecting_field_exists_on_config():
+    """Guards against a rename silently dropping a field from the hash."""
+    from dataclasses import asdict
+
+    from linkage_engine.config import GRAPH_AFFECTING_FIELDS
+
+    assert GRAPH_AFFECTING_FIELDS <= set(asdict(Config()))
 
 
 def test_check_fingerprint_accepts_a_matching_graph(graph, cfg):
