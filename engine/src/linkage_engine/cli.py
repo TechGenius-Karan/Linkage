@@ -588,7 +588,7 @@ def export(
             raise typer.Exit(1)
         _echo_header("Verifying existing archive")
         try:
-            report = corpus.check(archive, cfg.max_word_reuse)
+            report = corpus.check(archive, cfg.max_word_reuse, cfg.word_reuse_window)
         except corpus.CorpusViolation as exc:
             typer.secho(str(exc), fg=typer.colors.RED)
             raise typer.Exit(1) from exc
@@ -633,11 +633,12 @@ def export(
     # Enforce the corpus rules while choosing, rather than assembling a batch
     # and rejecting it (planning.md 7.7.1). `already_shipped` makes the cap
     # span the whole archive, so month two cannot reuse month one's words.
-    _echo_header(f"Diversity selection (batch of {batch})")
+    _echo_header(f"Diversity selection (batch of {batch}, max {cfg.max_word_reuse} uses per {cfg.word_reuse_window} puzzles)")
     selected, selection = corpus.select_diverse(
         approved,
         target=batch,
         max_word_reuse=cfg.max_word_reuse,
+        window=cfg.word_reuse_window,
         already_shipped=existing,
     )
     typer.echo(f"  {selection.summary()}")
@@ -669,7 +670,7 @@ def export(
 
     _echo_header("Corpus quality control")
     try:
-        report = corpus.check(archive, cfg.max_word_reuse)
+        report = corpus.check(archive, cfg.max_word_reuse, cfg.word_reuse_window)
     except corpus.CorpusViolation as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(1) from exc

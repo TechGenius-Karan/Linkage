@@ -114,7 +114,20 @@ class Config:
     batch_size: int = 30
     #: The eventual archive depth, not a precondition for shipping.
     target_approved: int = 365
-    max_word_reuse: int = 3
+
+    # --- Word reuse: a rolling window, not a lifetime quota ---
+    # A word may appear up to `max_word_reuse` times within any
+    # `word_reuse_window` consecutive puzzles, and becomes available again
+    # once it falls out the back of that window.
+    #
+    # A lifetime cap retires a word forever, which is stricter than memory
+    # actually is -- nobody recalls a tile from five months ago. Windowing
+    # keeps the game feeling varied where variety is perceptible (a season)
+    # without permanently spending the vocabulary.
+    max_word_reuse: int = 5
+    #: ~4 months of dailies.
+    word_reuse_window: int = 120
+
     launch_week_size: int = 7
 
     # --- Export (planning.md 3.1, 3.3) ---

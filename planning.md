@@ -151,7 +151,29 @@ The reframe is the point. "3 of 6 attempts used" reads as a budget to spend; **t
 >
 > Tracked as Risk #11. Measure this in playtest before launch, not after.
 
-**Loss condition:** 3 failed attempts → `lost`. The full solution chain is then revealed.
+**Loss condition:** all lives spent → `lost`. The full solution chain is then revealed.
+
+> ⚠️ **`MAX_ATTEMPTS` is currently undecided.** Three proved too harsh on reflection, and the replacement depends on §2.5.2 below. It is a single client-side constant and blocks nothing in the generator, so it can stay open until Phase 4.
+
+### 2.5.2 Open question — time instead of lives?
+
+**Proposal:** drop the fail state entirely and score on *time to solve*, comparing and recording players' times.
+
+**Verdict: not as a replacement for lives. Worth having as a secondary stat.** The reasoning, so the decision can be revisited with the argument intact rather than re-litigated from scratch:
+
+1. **Without scarcity, the feedback becomes an exploit.** Count-only feedback works *because* guesses are scarce. Make them free and the optimal strategy is mechanical probing — permute tiles, read the count, converge. The game would then reward *clicking speed*, not insight. This is the decisive objection: it does not merely change the challenge, it inverts what the game rewards.
+
+2. **A timer fights the core design.** §1.3's north star is the "aha" — and an aha is a *pause*. You stare, turn the idea over, and it clicks. Insight problems are measurably hindered by time pressure; Linkage is an insight problem by construction. A clock converts a contemplative game into a reflex game.
+
+3. **You would have to cap attempts anyway** — or add a time penalty per wrong guess — at which point lives have been reinvented with extra steps.
+
+4. **Comparison needs a backend.** Personal-best timing is trivial and local. "Compared and measured" against other players means the Workers + D1 tier in §9, which v1 deliberately does not have.
+
+5. **It punishes how dailies are actually played** — on a commute, in a queue, half-distracted, phone down mid-puzzle.
+
+**What does work:** record elapsed time as a *stat*, shown on the win screen and in `StatsPanel`, with lives still deciding win/loss. Cheap, local, no backend, and it gives the competitive hook without letting speed override thinking. If a leaderboard is ever wanted, time-as-tiebreaker among equal-attempt solves is the natural shape.
+
+**Deferred to Phase 4.** Nothing here blocks puzzle generation.
 
 ### 2.6 The Daily Cycle
 
@@ -752,7 +774,7 @@ puzzles, it is the only way to tell *which* component is mis-weighted.
 
 Every check so far validates a puzzle **in isolation**. A set of 365 individually-good puzzles can still be a bad *year*, and nothing above would catch it. These run at `export` time, across the whole approved set:
 
-- [ ] **Word repetition cap.** No word appears in more than `MAX_WORD_REUSE = 3` puzzles across the year, counting bank appearances, not just solutions. Without this, high-degree survivors like `gravity` or `river` show up in forty puzzles and the game feels small.
+- [ ] **Word repetition cap, on a rolling window.** No word appears more than `MAX_WORD_REUSE = 5` times within any `WORD_REUSE_WINDOW = 120` consecutive puzzles (~4 months), counting the bank *and both endpoints*. A word blocked today becomes available again once it falls out the back of the window. Without any cap, high-degree survivors like `gravity` or `river` show up in forty puzzles and the game feels small.
 - [ ] **No duplicate `(start, end)` pairs**, in either direction. `APPLE → OCEAN` and `OCEAN → APPLE` are the same puzzle wearing a hat.
 - [ ] **No repeated solution chain**, even with different endpoints.
 - [ ] **Launch week is hand-picked easy.** Puzzles #1–#7 are chosen manually from the top of the quality ranking, not drawn from the shuffle. First impressions decide whether anyone comes back on day two, and a brutal #1 costs more than a boring one.
@@ -774,16 +796,29 @@ So `export` **selects by construction**, exactly as the bank builder does for un
 
 From a fixed pool of 900 real candidates:
 
-| `MAX_WORD_REUSE` | Puzzles yielded | Survival | Candidates needed for 365 |
-|---:|---:|---:|---:|
-| 2 | 86 | 9.6% | ~3,800 |
-| **3** | **134** | **14.9%** | **~2,450** |
-| 4 | 177 | 19.7% | ~1,860 |
-| 5 | 217 | 24.1% | ~1,510 |
-| 6 | 250 | 27.8% | ~1,310 |
-| 10 | 365 | 40.6% | ~900 |
+| Rule | Puzzles from 900 | Survival |
+|---|---:|---:|
+| cap 3, lifetime *(original)* | 134 | 14.9% |
+| cap 5, lifetime | 217 | 24.1% |
+| **cap 5, 120-puzzle window** *(shipped)* | **365** | **40.6%** |
 
 **The word cap is the only binding constraint** — duplicate pairs and repeated chains accounted for zero rejections at every setting.
+
+**Why the window, not just a bigger number.** A lifetime cap retires a word *forever*, which is stricter than memory actually is: nobody recalls a tile from five months ago. Windowing keeps the game varied where variety is perceptible — across a season — without permanently spending the vocabulary. It reaches a full 365 from the same 900 candidates that a lifetime cap of 5 could only stretch to 217.
+
+Duplicate endpoint pairs and repeated solution chains stay barred **permanently**, not by window. Word reuse is texture and fades; shipping the literal same puzzle twice is a defect at any distance.
+
+Monthly batches under the shipped rule, from that same pool:
+
+```
+  month  1: +30   archive= 30    skipped for word cap:   0
+  month  3: +30   archive= 90                           35
+  month  5: +30   archive=150                          106
+  month  6: +30   archive=180                           40   <-- window slides
+  month 12: +30   archive=360                          101
+```
+
+The dip at month 6 is the window doing its job: puzzles from month 1 have fallen out, so their words are available again.
 
 #### The archive grows a month at a time *(decided)*
 
@@ -808,11 +843,11 @@ Measured over three real batches:
 | Month 2 | 30 | 60 | 50 |
 | Month 3 | 30 | 90 | 161 |
 
-**Launching needs roughly 40 approved candidates, not 2,500.** The skip rate climbs as the archive fills — which is the cap doing its job — but by then the game is live and curation is a monthly habit rather than a prerequisite.
+**Launching needs roughly 30-40 approved candidates.** The skip rate climbs as the archive fills, then eases once the window starts sliding — by which point the game is live and curation is a monthly habit rather than a prerequisite.
 
 > Approved candidates are never consumed destructively: any that a batch skips stay in the pool for the next one. Reviewing is cumulative, so a light session still moves the archive forward.
 
-The `MAX_WORD_REUSE` lever from the table above remains available if even the monthly cadence feels heavy — raising it to 5 roughly halves the candidates needed per batch, and still means no word appears more than five times across the year.
+If even the monthly cadence feels heavy, the levers are `MAX_WORD_REUSE` (raise it) or `WORD_REUSE_WINDOW` (shorten it). Both trade perceived variety for review effort, and both are single constants.
 
 ### 7.8 Determinism Checklist
 
@@ -1603,13 +1638,14 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | `WORD_MIN_LEN` / `WORD_MAX_LEN` | 3 / 12 | Longer words overflow a tile at 320 px (§3.1.1). |
 | `CHAIN_LENGTH` | 4 | Intermediate words. Structural — changing it touches the solver and the UI. |
 | `BANK_SIZE` | 11 | Spec allows 10–12. Falls back to 10 when safe distractors run short (Risk #16). |
-| `MAX_ATTEMPTS` | 3 | Three lives. **Tune by playtest** (Risk #11). |
+| `MAX_ATTEMPTS` | **undecided** | 3 proved too harsh. Pending the scoring-model question in §2.5.2 — does not block the generator. |
 | `MIN_EDGE_WEIGHT` | 2.0 | Gate on the path's *weakest* edge. §7.9.4 Tier 1 may soften this to a rank. |
 | `BFS_TOP_K` | 40 | Neighbours kept per frontier expansion. |
 | `HUB_PERCENTILE` | `None` | **Automatic degree pruning is off** — the curated `GENERIC_HUBS` list does this job (§7.3, Risk #19). Set a float to re-enable; the machinery is kept and tested. |
 | `HUB_REPORT_TOP_N` | 40 | Highest-degree words printed after a build, as curated-list candidates. |
 | `ENFORCE_CHORDLESS` | `full` | `full` \| `minimal` \| `off` — see §7.9.4 Tier 2. `minimal` keeps the uniqueness proof intact. |
-| `MAX_WORD_REUSE` | 3 | Times any word may appear across the whole year (§7.7.1). |
+| `MAX_WORD_REUSE` | 5 | Times any word may appear **within a rolling window** (§7.7.1). |
+| `WORD_REUSE_WINDOW` | 120 | Window length in puzzles, ~4 months. A word blocked today returns once it falls out the back. |
 | `MIN_ENDPOINT_DEGREE` | 5 | A degree-1 endpoint has one possible neighbour and makes a forced rung. |
 | `MAX_PATHS_PER_PAIR` | 8 | Per-pair search budget. Risk #20 -- 25 seeds once produced 33M paths. |
 | `DISTRACTOR_POOL_SIZE` | 120 | Candidates each strategy proposes before ranking. |

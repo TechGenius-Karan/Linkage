@@ -46,7 +46,7 @@ def puzzles() -> list[Puzzle]:
 
 def test_the_shipped_archive_passes_corpus_qc(puzzles):
     """The same check `export` runs, re-run against what landed on disk."""
-    report = check(puzzles, DEFAULT.max_word_reuse)
+    report = check(puzzles, DEFAULT.max_word_reuse, DEFAULT.word_reuse_window)
     assert report.puzzles == len(puzzles)
 
 
