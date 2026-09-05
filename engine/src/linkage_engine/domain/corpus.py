@@ -17,7 +17,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Sequence
 
-from .models import Puzzle
+from .models import Candidate, Puzzle
 
 
 class CorpusViolation(Exception):
@@ -35,15 +35,92 @@ class CorpusReport:
 
 
 def word_usage(puzzles: Sequence[Puzzle]) -> Counter[str]:
-    """How often each word appears in any bank.
+    """How often each word appears anywhere a player can see it.
 
-    Counts **bank** appearances, not just solutions: a word the player sees
-    every other day feels repetitive whether or not it was the answer.
+    Counts the **bank and both endpoints**, not just solutions. A word the
+    player looks at every other day feels repetitive whether or not it was
+    the answer -- and the start and end words sit on screen for the entire
+    game, so they are the most visible of all.
     """
     usage: Counter[str] = Counter()
     for puzzle in puzzles:
-        usage.update(set(puzzle.bank))
+        usage.update({*puzzle.bank, puzzle.start, puzzle.end})
     return usage
+
+
+@dataclass(frozen=True, slots=True)
+class SelectionReport:
+    considered: int
+    selected: int
+    skipped_word_cap: int
+    skipped_duplicate_pair: int
+    skipped_duplicate_chain: int
+
+    def summary(self) -> str:
+        return (
+            f"selected {self.selected} of {self.considered} "
+            f"(skipped {self.skipped_word_cap} word-cap, "
+            f"{self.skipped_duplicate_pair} dup-pair, "
+            f"{self.skipped_duplicate_chain} dup-chain)"
+        )
+
+
+def select_diverse(
+    candidates: Sequence[Candidate], *, target: int, max_word_reuse: int
+) -> tuple[list[Candidate], SelectionReport]:
+    """Greedily pick a subset that satisfies the corpus rules by construction.
+
+    `check` alone is not enough. It fails loudly on a bad year, which is
+    correct, but a reviewer judging candidates one at a time cannot possibly
+    track word usage across 365 puzzles -- so "fix it by hand" is not a real
+    instruction. Measured on the first real run: the top 120 candidates by
+    quality contained 84 words over a cap of 3, because the generator samples
+    endpoint pairs independently and popular mid-degree words like `desk` and
+    `cake` recur constantly.
+
+    So selection enforces the rules while choosing, exactly as the bank
+    builder enforces uniqueness while choosing (planning.md 7.6). `check`
+    then stays as independent verification of the finished archive -- belt
+    and braces on the property that matters.
+
+    Input must already be ordered by preference; the best candidate that
+    still fits is always taken.
+    """
+    usage: Counter[str] = Counter()
+    seen_pairs: set[frozenset[str]] = set()
+    seen_chains: set[tuple[str, ...]] = set()
+    chosen: list[Candidate] = []
+    skipped = {"word": 0, "pair": 0, "chain": 0}
+
+    for candidate in candidates:
+        if len(chosen) >= target:
+            break
+
+        pair = frozenset({candidate.path.start, candidate.path.end})
+        if pair in seen_pairs:
+            skipped["pair"] += 1
+            continue
+        if candidate.path.steps in seen_chains:
+            skipped["chain"] += 1
+            continue
+
+        words = {*candidate.bank, candidate.path.start, candidate.path.end}
+        if any(usage[w] >= max_word_reuse for w in words):
+            skipped["word"] += 1
+            continue
+
+        chosen.append(candidate)
+        seen_pairs.add(pair)
+        seen_chains.add(candidate.path.steps)
+        usage.update(words)
+
+    return chosen, SelectionReport(
+        considered=len(candidates),
+        selected=len(chosen),
+        skipped_word_cap=skipped["word"],
+        skipped_duplicate_pair=skipped["pair"],
+        skipped_duplicate_chain=skipped["chain"],
+    )
 
 
 def check(puzzles: Sequence[Puzzle], max_word_reuse: int) -> CorpusReport:

@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import pytest
 
-from linkage_engine.domain.corpus import CorpusViolation, check, word_usage
-from linkage_engine.domain.models import Puzzle
+from linkage_engine.domain.corpus import (
+    CorpusViolation,
+    check,
+    select_diverse,
+    word_usage,
+)
+from linkage_engine.domain.models import Candidate, Path, Puzzle
 
 
 def puzzle(pid: int, start: str, end: str, solution, extra=()) -> Puzzle:
@@ -35,7 +40,8 @@ def test_a_clean_corpus_passes():
         max_word_reuse=3,
     )
     assert report.puzzles == 2
-    assert report.distinct_words == 8
+    # 8 bank words plus 4 endpoints -- endpoints are on screen all game.
+    assert report.distinct_words == 12
 
 
 def test_word_usage_counts_banks_not_just_solutions():
@@ -48,6 +54,16 @@ def test_word_usage_counts_banks_not_just_solutions():
         ]
     )
     assert usage["decoy"] == 2
+
+
+def test_word_usage_counts_endpoints_too():
+    usage = word_usage(
+        [
+            puzzle(1, "ocean", "b", ["p", "q", "r", "s"]),
+            puzzle(2, "c", "ocean", ["t", "u", "v", "w"]),
+        ]
+    )
+    assert usage["ocean"] == 2
 
 
 def test_overused_word_is_rejected():
@@ -128,3 +144,92 @@ def test_every_violation_is_reported_at_once():
 
 def test_empty_corpus_is_vacuously_clean():
     assert check([], max_word_reuse=3).puzzles == 0
+
+
+# --------------------------------------------------------------------------
+# Diversity selection
+# --------------------------------------------------------------------------
+
+
+def candidate(start, end, steps, extra=(), quality=0.8) -> Candidate:
+    steps = tuple(steps)
+    path = Path(start, end, steps, (3.0,) * 5, (("RelatedTo",),) * 5)
+    return Candidate(path=path, bank=tuple([*steps, *extra]), quality=quality)
+
+
+def test_selection_output_always_passes_check():
+    """The point of selecting by construction: the result cannot fail."""
+    pool = [
+        candidate(f"s{i}", f"e{i}", [f"a{i}", f"b{i}", "shared", "common"])
+        for i in range(20)
+    ]
+    selected, _ = select_diverse(pool, target=20, max_word_reuse=3)
+    puzzles = [
+        Puzzle(i + 1, f"2026-10-{i + 1:02d}", c.path.start, c.path.end,
+               c.path.steps, c.bank)
+        for i, c in enumerate(selected)
+    ]
+    check(puzzles, max_word_reuse=3)  # must not raise
+
+
+def test_selection_stops_at_the_reuse_cap():
+    pool = [
+        candidate(f"s{i}", f"e{i}", [f"a{i}", f"b{i}", f"c{i}", "gravity"])
+        for i in range(10)
+    ]
+    selected, report = select_diverse(pool, target=10, max_word_reuse=3)
+    assert len(selected) == 3
+    assert report.skipped_word_cap == 7
+
+
+def test_selection_skips_duplicate_endpoint_pairs():
+    pool = [
+        candidate("apple", "ocean", ["a", "b", "c", "d"]),
+        candidate("ocean", "apple", ["e", "f", "g", "h"]),  # reversed
+        candidate("piano", "forest", ["i", "j", "k", "l"]),
+    ]
+    selected, report = select_diverse(pool, target=10, max_word_reuse=9)
+    assert len(selected) == 2
+    assert report.skipped_duplicate_pair == 1
+
+
+def test_selection_skips_repeated_chains():
+    pool = [
+        candidate("apple", "ocean", ["a", "b", "c", "d"]),
+        candidate("piano", "forest", ["a", "b", "c", "d"]),
+    ]
+    selected, report = select_diverse(pool, target=10, max_word_reuse=9)
+    assert len(selected) == 1
+    assert report.skipped_duplicate_chain == 1
+
+
+def test_selection_takes_the_best_candidate_that_fits():
+    """Input is pre-sorted by preference, so the first fit is the best fit."""
+    pool = [
+        candidate("s1", "e1", ["a", "b", "c", "keep"], quality=0.9),
+        candidate("s2", "e2", ["d", "e", "f", "keep"], quality=0.5),
+    ]
+    selected, _ = select_diverse(pool, target=1, max_word_reuse=1)
+    assert selected[0].quality == 0.9
+
+
+def test_selection_honours_the_target():
+    pool = [candidate(f"s{i}", f"e{i}", [f"a{i}", f"b{i}", f"c{i}", f"d{i}"])
+            for i in range(50)]
+    selected, _ = select_diverse(pool, target=7, max_word_reuse=3)
+    assert len(selected) == 7
+
+
+def test_selection_counts_endpoints_against_the_cap():
+    """`ocean` as a start word 20 times is as repetitive as in 20 banks."""
+    pool = [
+        candidate("ocean", f"e{i}", [f"a{i}", f"b{i}", f"c{i}", f"d{i}"])
+        for i in range(10)
+    ]
+    selected, _ = select_diverse(pool, target=10, max_word_reuse=3)
+    assert len(selected) == 3
+
+
+def test_selection_of_an_empty_pool_is_empty():
+    selected, report = select_diverse([], target=10, max_word_reuse=3)
+    assert selected == [] and report.selected == 0

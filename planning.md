@@ -759,6 +759,33 @@ Every check so far validates a puzzle **in isolation**. A set of 365 individuall
 
 `export` **fails loudly** if any of these are violated rather than quietly shipping. All are cheap set operations over ~365 × 11 words.
 
+#### Enforcing them, not just checking them
+
+Failing loudly is correct and, on its own, useless. A reviewer judging candidates one at a time cannot track word usage across 365 puzzles, so "the archive is bad, fix it" is not an instruction anyone can act on.
+
+Measured on the first real run: **the top 120 candidates by quality contained 84 words over a cap of 3** (`writing ×11`, `cake ×10`, `desk ×10`). The generator samples endpoint pairs independently, so popular mid-degree words recur constantly across the pool.
+
+So `export` **selects by construction**, exactly as the bank builder does for uniqueness (§7.6): walk the approved candidates best-first and take each one only if it still fits under the cap. `check` then remains as independent verification of the finished archive.
+
+> Word usage counts the **bank plus both endpoints**. The start and end words sit on screen for the entire game, so they are the most visible words in the puzzle — excluding them from the cap would miss the most repetitive thing a player sees.
+
+#### The cost of variety — measured
+
+From a fixed pool of 900 real candidates:
+
+| `MAX_WORD_REUSE` | Puzzles yielded | Survival | Candidates needed for 365 |
+|---:|---:|---:|---:|
+| 2 | 86 | 9.6% | ~3,800 |
+| **3** | **134** | **14.9%** | **~2,450** |
+| 4 | 177 | 19.7% | ~1,860 |
+| 5 | 217 | 24.1% | ~1,510 |
+| 6 | 250 | 27.8% | ~1,310 |
+| 10 | 365 | 40.6% | ~900 |
+
+**The word cap is the only binding constraint** — duplicate pairs and repeated chains accounted for zero rejections at every setting.
+
+> ⚠️ **This makes §7.7's "generate ~800, review over two evenings" wrong by roughly 3×.** At the current cap of 3, a full year needs on the order of **2,500 approved candidates**, which is a materially larger review burden than planned. The lever is `MAX_WORD_REUSE`: moving it to 5 nearly halves the work and still means no word appears more than five times in a year. That is a product call about variety versus review effort — Risk #21.
+
 ### 7.8 Determinism Checklist
 
 Same inputs must always produce byte-identical output. This is what makes the archive rebuildable years from now.
@@ -1441,7 +1468,8 @@ Actions:
 | 17 | **Midnight passes with the tab open** | Certain for some players | Progress written under yesterday's ID; stale board | Recompute the puzzle number on `visibilitychange`/`focus`; prompt rather than yank the board (§8.7). |
 | 18 | **Same-stem or overlapping words in one bank** | Medium | Looks sloppy; `moon` next to `moons` | Porter-stem comparison plus a substring check across the bank at selection time (§7.6). |
 | 19 | ~~**Degree-percentile pruning is deleting good puzzle words**~~ | ~~Confirmed~~ **RESOLVED** | — | **Automatic pruning removed; the curated `GENERIC_HUBS` list does this job** (§7.3). All 75 words restored, `animal` through `bridge`. Degree is the wrong signal — it measures connectedness, not genericness. `build-graph` still reports the top 40 by degree as candidates for the curated list. |
-| 20 | **Generator enumerates paths exhaustively and never finishes** | High if unguarded | `generate` runs for hours producing candidates nobody will review | 25 seeds yielded 33M paths (§7.9.5). The generator needs per-seed budgets and early termination, not exhaustive enumeration. Design constraint for Phase 2. |
+| 20 | ~~**Generator enumerates paths exhaustively and never finishes**~~ | ~~High~~ **RESOLVED** | — | Per-pair path budget (`MAX_PATHS_PER_PAIR`) plus a pair budget, and one puzzle per endpoint pair. 900 candidates now come from 2,679 pairs in ~4 minutes. |
+| 21 | **Review burden is ~3× the plan's estimate** | **Confirmed in Phase 2** | 2,500 candidates to review, not 800 — many more evenings than budgeted | Diversity selection yields only ~15% of candidates at `MAX_WORD_REUSE=3` (§7.7.1 table). **Decision needed:** keep the cap at 3 and accept the review load, or raise it to 5 (halves the work; no word appears more than 5× a year). Variety versus effort — a product call, not a defect. |
 
 ---
 

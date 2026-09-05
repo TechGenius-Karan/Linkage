@@ -426,10 +426,19 @@ def generate(
                 fg=typer.colors.GREEN,
             )
             raise typer.Exit(0)
-        # Assume a pessimistic acceptance rate so one run usually suffices.
+        # Pessimistic acceptance rate so one run usually suffices.
         count = max(count, shortfall * 3)
         typer.echo(
             f"  {approved_now} approved, need {shortfall} more -> generating {count}"
+        )
+        typer.secho(
+            "\n  NOTE: approving N candidates does not yield N puzzles.\n"
+            "  `export` then thins the set again to keep words from repeating\n"
+            f"  across the year. Measured at MAX_WORD_REUSE={cfg.max_word_reuse}:\n"
+            "  roughly 15% of candidates survive diversity selection, so a full\n"
+            "  year needs on the order of 2,500 approved. Raising the cap is the\n"
+            "  lever if that is too much review (planning.md 7.7.1).",
+            fg=typer.colors.YELLOW,
         )
 
     budget = max_pairs if max_pairs is not None else count * 40
@@ -575,15 +584,33 @@ def export(
         )
         raise typer.Exit(1)
 
-    # Launch week is hand-picked from the top of the quality ranking; the rest
-    # is shuffled so difficulty does not trend across the year (7.7.1).
     approved.sort(key=lambda c: (-c.quality, c.content_hash()))
-    launch = approved[: cfg.launch_week_size]
-    rest = approved[cfg.launch_week_size :]
-    random.Random(cfg.seed).shuffle(rest)
-    ordered = (launch + rest)[:limit] if limit else launch + rest
 
-    puzzles = exporters.assign_dates(ordered, epoch)
+    # Enforce the corpus rules while choosing, rather than assembling a year
+    # and rejecting it (planning.md 7.7.1). Same pattern as the bank builder.
+    _echo_header("Diversity selection")
+    target = limit or cfg.target_approved
+    selected, selection = corpus.select_diverse(
+        approved, target=target, max_word_reuse=cfg.max_word_reuse
+    )
+    typer.echo(f"  {selection.summary()}")
+    if selection.selected < target:
+        typer.secho(
+            f"  Only {selection.selected} of {target} could be filled without "
+            f"breaking the reuse cap.\n"
+            f"  Approve more candidates, or raise MAX_WORD_REUSE.",
+            fg=typer.colors.YELLOW,
+        )
+        if not allow_short:
+            raise typer.Exit(1)
+
+    # Launch week is the best of what survived selection; the rest is shuffled
+    # so difficulty does not trend across the year (7.7.1).
+    launch = selected[: cfg.launch_week_size]
+    rest = selected[cfg.launch_week_size :]
+    random.Random(cfg.seed).shuffle(rest)
+
+    puzzles = exporters.assign_dates(launch + rest, epoch)
 
     _echo_header("Corpus quality control")
     try:
