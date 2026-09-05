@@ -15,7 +15,7 @@ See [planning.md](planning.md) for the full design and architecture.
 
 | Phase | What | State |
 |---|---|---|
-| 1 | Data engine -- ConceptNet graph | **in progress** |
+| 1 | Data engine -- ConceptNet graph | **done** -- 7,524 nodes, 46,795 edges |
 | 2 | Puzzle generator + human review | not started |
 | 3 | Frontend scaffold (Vite/React/TS) | not started |
 | 4 | Game loop and logic | not started |
