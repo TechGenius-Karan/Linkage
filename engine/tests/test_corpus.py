@@ -233,3 +233,71 @@ def test_selection_counts_endpoints_against_the_cap():
 def test_selection_of_an_empty_pool_is_empty():
     selected, report = select_diverse([], target=10, max_word_reuse=3)
     assert selected == [] and report.selected == 0
+
+
+# --------------------------------------------------------------------------
+# Incremental batches
+# --------------------------------------------------------------------------
+
+
+def test_selection_counts_words_already_shipped():
+    """Month two must not quietly reuse month one's words -- the cap spans
+    the archive, not the batch."""
+    shipped = [puzzle(i, f"x{i}", f"y{i}", ["p", "q", "r", "gravity"]) for i in (1, 2, 3)]
+    pool = [candidate(f"s{i}", f"e{i}", [f"a{i}", f"b{i}", f"c{i}", "gravity"])
+            for i in range(5)]
+
+    fresh, report = select_diverse(pool, target=5, max_word_reuse=3)
+    assert len(fresh) == 3  # without history, three fit
+
+    none_left, report = select_diverse(
+        pool, target=5, max_word_reuse=3, already_shipped=shipped
+    )
+    assert none_left == []  # gravity is already at the cap
+    assert report.skipped_word_cap == 5
+
+
+def test_selection_will_not_repeat_a_shipped_endpoint_pair():
+    shipped = [puzzle(1, "apple", "ocean", ["p", "q", "r", "s"])]
+    pool = [candidate("ocean", "apple", ["a", "b", "c", "d"])]  # reversed
+    selected, report = select_diverse(
+        pool, target=5, max_word_reuse=9, already_shipped=shipped
+    )
+    assert selected == []
+    assert report.skipped_duplicate_pair == 1
+
+
+def test_selection_will_not_repeat_a_shipped_chain():
+    shipped = [puzzle(1, "apple", "ocean", ["a", "b", "c", "d"])]
+    pool = [candidate("piano", "forest", ["a", "b", "c", "d"])]
+    selected, report = select_diverse(
+        pool, target=5, max_word_reuse=9, already_shipped=shipped
+    )
+    assert selected == []
+    assert report.skipped_duplicate_chain == 1
+
+
+def test_batches_accumulate_into_an_archive_that_passes_check():
+    """Three monthly batches in a row must still make a clean year."""
+    pool = [
+        candidate(f"s{i}", f"e{i}", [f"a{i}", f"b{i}", f"c{i}", f"d{i}"])
+        for i in range(60)
+    ]
+    shipped: list[Puzzle] = []
+    for _ in range(3):
+        batch, _ = select_diverse(
+            pool, target=5, max_word_reuse=3, already_shipped=shipped
+        )
+        assert len(batch) == 5
+        start = len(shipped) + 1
+        shipped += [
+            Puzzle(start + n, f"2026-10-{start + n:02d}", c.path.start, c.path.end,
+                   c.path.steps, c.bank)
+            for n, c in enumerate(batch)
+        ]
+        # Candidates already used must not be offered again.
+        chosen = {c.content_hash() for c in batch}
+        pool = [c for c in pool if c.content_hash() not in chosen]
+
+    assert len(shipped) == 15
+    check(shipped, max_word_reuse=3)  # must not raise

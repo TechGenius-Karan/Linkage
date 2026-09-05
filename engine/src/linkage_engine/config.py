@@ -108,6 +108,11 @@ class Config:
     distractor_pool_size: int = 120
 
     # --- Curation (planning.md 7.7, 7.7.1) ---
+    #: One month at a time. A year does not have to exist before launch, and
+    #: pretending it does turns curation into a wall nobody climbs. Each
+    #: `export` appends another batch to the archive.
+    batch_size: int = 30
+    #: The eventual archive depth, not a precondition for shipping.
     target_approved: int = 365
     max_word_reuse: int = 3
     launch_week_size: int = 7

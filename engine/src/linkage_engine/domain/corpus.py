@@ -66,7 +66,11 @@ class SelectionReport:
 
 
 def select_diverse(
-    candidates: Sequence[Candidate], *, target: int, max_word_reuse: int
+    candidates: Sequence[Candidate],
+    *,
+    target: int,
+    max_word_reuse: int,
+    already_shipped: Sequence[Puzzle] = (),
 ) -> tuple[list[Candidate], SelectionReport]:
     """Greedily pick a subset that satisfies the corpus rules by construction.
 
@@ -85,10 +89,17 @@ def select_diverse(
 
     Input must already be ordered by preference; the best candidate that
     still fits is always taken.
+
+    `already_shipped` seeds the counters from an existing archive. The whole
+    point of building a year one month at a time is that month two must not
+    quietly reuse month one's words -- so the cap spans the archive, not the
+    batch.
     """
-    usage: Counter[str] = Counter()
-    seen_pairs: set[frozenset[str]] = set()
-    seen_chains: set[tuple[str, ...]] = set()
+    usage: Counter[str] = word_usage(already_shipped)
+    seen_pairs: set[frozenset[str]] = {
+        frozenset({p.start, p.end}) for p in already_shipped
+    }
+    seen_chains: set[tuple[str, ...]] = {p.solution for p in already_shipped}
     chosen: list[Candidate] = []
     skipped = {"word": 0, "pair": 0, "chain": 0}
 

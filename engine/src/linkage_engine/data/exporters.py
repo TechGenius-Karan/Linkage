@@ -95,6 +95,49 @@ def write_decisions(path: Path, decisions: dict[str, str]) -> None:
 # --------------------------------------------------------------------------
 
 
+def read_archive(cfg: Config) -> list[Puzzle]:
+    """Every puzzle already shipped, decoded from its per-day file.
+
+    Building a year one month at a time means every later batch has to know
+    what the earlier ones used -- for word reuse, for date continuity, and
+    for puzzle numbering.
+    """
+    from .codec import decode
+
+    if not cfg.puzzles_dir.exists():
+        return []
+
+    puzzles: list[Puzzle] = []
+    for path in sorted(cfg.puzzles_dir.glob("*.json")):
+        if path.name == "manifest.json":
+            continue
+        row = decode(json.loads(path.read_text(encoding="utf-8"))["d"], path.stem)
+        puzzles.append(
+            Puzzle(
+                id=row["id"],
+                date=row["date"],
+                start=row["start"],
+                end=row["end"],
+                solution=tuple(row["solution"]),
+                bank=tuple(row["bank"]),
+            )
+        )
+    return sorted(puzzles, key=lambda p: p.id)
+
+
+def next_slot(existing: Sequence[Puzzle], epoch_date: str) -> tuple[int, str]:
+    """Where the next batch starts: `(first_id, first_date)`.
+
+    An empty archive starts at id 1 on the epoch; otherwise the batch picks
+    up the day after the last shipped puzzle, with no gap and no renumbering.
+    """
+    if not existing:
+        return 1, epoch_date
+    last = existing[-1]
+    following = date.fromisoformat(last.date) + timedelta(days=1)
+    return last.id + 1, following.isoformat()
+
+
 def assign_dates(
     approved: Sequence[Candidate], start_date: str, first_id: int = 1
 ) -> list[Puzzle]:

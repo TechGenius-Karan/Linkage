@@ -549,21 +549,63 @@ def review(
 
 @app.command()
 def export(
-    start_date: Annotated[
-        str, typer.Option("--start-date", help="Date of puzzle #1 (ISO).")
-    ] = "",
-    limit: Annotated[
-        int | None, typer.Option("--limit", help="Ship at most this many puzzles.")
+    count: Annotated[
+        int | None,
+        typer.Option("--count", help="Puzzles to add. Defaults to one batch."),
     ] = None,
-    allow_short: Annotated[
+    replace: Annotated[
         bool,
-        typer.Option("--allow-short", help="Export even with fewer than the target."),
+        typer.Option("--replace", help="Rebuild the archive instead of appending."),
+    ] = False,
+    start_date: Annotated[
+        str, typer.Option("--start-date", help="Date of puzzle #1. First batch only.")
+    ] = "",
+    verify_only: Annotated[
+        bool,
+        typer.Option(
+            "--verify-only",
+            help="Add nothing. Re-check the existing archive and refresh the "
+            "manifest and verification subgraph.",
+        ),
     ] = False,
 ) -> None:
-    """Assemble the archive: per-day files, manifest, verification subgraph."""
+    """Append a batch of puzzles to the archive.
+
+    The archive grows a month at a time. Run `export` again whenever more
+    candidates have been reviewed; existing puzzles keep their numbers and
+    dates, and the new batch picks up the day after the last one.
+    """
     cfg = DEFAULT
-    epoch = start_date or cfg.epoch_date
     graph = _load_graph(cfg)
+    batch = count or cfg.batch_size
+
+    if verify_only:
+        # The path out of planning.md 12.1: a bad puzzle is fixed by editing
+        # its own day file, which leaves the subgraph stale.
+        archive = exporters.read_archive(cfg)
+        if not archive:
+            typer.secho("Archive is empty; nothing to verify.", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        _echo_header("Verifying existing archive")
+        try:
+            report = corpus.check(archive, cfg.max_word_reuse)
+        except corpus.CorpusViolation as exc:
+            typer.secho(str(exc), fg=typer.colors.RED)
+            raise typer.Exit(1) from exc
+        typer.secho(f"  PASS -- {report.summary()}", fg=typer.colors.GREEN)
+        exporters.write_manifest(cfg, archive)
+        subgraph = exporters.write_verification_subgraph(cfg, graph, archive)
+        typer.echo(f"  refreshed manifest.json and {subgraph.name}")
+        typer.secho("\nNext:  pytest", fg=typer.colors.GREEN)
+        raise typer.Exit(0)
+
+    existing = [] if replace else exporters.read_archive(cfg)
+    if replace and cfg.puzzles_dir.exists():
+        typer.secho(
+            "  --replace: existing per-day files will be rewritten from scratch",
+            fg=typer.colors.YELLOW,
+        )
+    first_id, first_date = exporters.next_slot(existing, start_date or cfg.epoch_date)
 
     rows = {r["hash"]: r for r in exporters.read_candidates(cfg.candidates_path)}
     decisions = exporters.read_decisions(cfg.decisions_path)
@@ -572,77 +614,92 @@ def export(
         for h, verdict in sorted(decisions.items())
         if verdict == review_ui.ACCEPT and h in rows
     ]
-
     if not approved:
         typer.secho("Nothing approved yet. Run `linkage review`.", fg=typer.colors.RED)
         raise typer.Exit(1)
-    if len(approved) < cfg.target_approved and not allow_short:
-        typer.secho(
-            f"Only {len(approved)} approved, target is {cfg.target_approved}.\n"
-            "Generate and review more, or pass --allow-short.",
-            fg=typer.colors.RED,
+
+    _echo_header("Archive")
+    if existing:
+        typer.echo(
+            f"  {len(existing):,} already shipped, #{existing[0].id} {existing[0].date}"
+            f" -> #{existing[-1].id} {existing[-1].date}"
         )
-        raise typer.Exit(1)
+    else:
+        typer.echo("  empty -- this is the first batch")
+    typer.echo(f"  next slot: #{first_id} on {first_date}")
 
     approved.sort(key=lambda c: (-c.quality, c.content_hash()))
 
-    # Enforce the corpus rules while choosing, rather than assembling a year
-    # and rejecting it (planning.md 7.7.1). Same pattern as the bank builder.
-    _echo_header("Diversity selection")
-    target = limit or cfg.target_approved
+    # Enforce the corpus rules while choosing, rather than assembling a batch
+    # and rejecting it (planning.md 7.7.1). `already_shipped` makes the cap
+    # span the whole archive, so month two cannot reuse month one's words.
+    _echo_header(f"Diversity selection (batch of {batch})")
     selected, selection = corpus.select_diverse(
-        approved, target=target, max_word_reuse=cfg.max_word_reuse
+        approved,
+        target=batch,
+        max_word_reuse=cfg.max_word_reuse,
+        already_shipped=existing,
     )
     typer.echo(f"  {selection.summary()}")
-    if selection.selected < target:
+    if not selected:
         typer.secho(
-            f"  Only {selection.selected} of {target} could be filled without "
-            f"breaking the reuse cap.\n"
-            f"  Approve more candidates, or raise MAX_WORD_REUSE.",
+            "  Nothing new fits. Approve more candidates, or raise "
+            "MAX_WORD_REUSE.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+    if selection.selected < batch:
+        typer.secho(
+            f"  Short batch: {selection.selected} of {batch}. Shipping anyway.",
             fg=typer.colors.YELLOW,
         )
-        if not allow_short:
-            raise typer.Exit(1)
 
-    # Launch week is the best of what survived selection; the rest is shuffled
-    # so difficulty does not trend across the year (7.7.1).
-    launch = selected[: cfg.launch_week_size]
-    rest = selected[cfg.launch_week_size :]
-    random.Random(cfg.seed).shuffle(rest)
+    # The launch week is the best of the very first batch; later batches are
+    # shuffled so difficulty does not trend (7.7.1).
+    if existing:
+        ordered = list(selected)
+        random.Random(cfg.seed + first_id).shuffle(ordered)
+    else:
+        launch, rest = selected[: cfg.launch_week_size], selected[cfg.launch_week_size :]
+        random.Random(cfg.seed).shuffle(rest)
+        ordered = launch + rest
 
-    puzzles = exporters.assign_dates(launch + rest, epoch)
+    fresh = exporters.assign_dates(ordered, first_date, first_id=first_id)
+    archive = existing + fresh
 
     _echo_header("Corpus quality control")
     try:
-        report = corpus.check(puzzles, cfg.max_word_reuse)
+        report = corpus.check(archive, cfg.max_word_reuse)
     except corpus.CorpusViolation as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(1) from exc
     typer.secho(f"  PASS -- {report.summary()}", fg=typer.colors.GREEN)
-    typer.echo(
-        "  most reused: "
-        + ", ".join(f"{w} x{n}" for w, n in report.most_reused[:6])
-    )
+    typer.echo("  most reused: " + ", ".join(f"{w} x{n}" for w, n in report.most_reused[:6]))
 
-    _echo_header("Writing archive")
-    written = exporters.write_puzzles(cfg, puzzles)
-    manifest = exporters.write_manifest(cfg, puzzles)
-    licence = exporters.write_licence_notice(cfg)
-    subgraph = exporters.write_verification_subgraph(cfg, graph, puzzles)
-    codec_fixture = codec.write_fixture(cfg.codec_fixture_path)
+    _echo_header("Writing")
+    written = exporters.write_puzzles(cfg, fresh)
+    exporters.write_manifest(cfg, archive)
+    exporters.write_licence_notice(cfg)
+    subgraph = exporters.write_verification_subgraph(cfg, graph, archive)
+    codec.write_fixture(cfg.codec_fixture_path)
 
-    typer.echo(f"  {len(written):,} per-day files -> {cfg.puzzles_dir}")
-    typer.echo(f"  {manifest.name}")
-    typer.echo(f"  {licence.name}")
+    typer.echo(f"  {len(written):,} new per-day files -> {cfg.puzzles_dir}")
+    typer.echo(f"  manifest.json, LICENSE.txt")
     typer.echo(
         f"  {subgraph.relative_to(cfg.repo_root)}  "
         f"({subgraph.stat().st_size / 1024:.0f} KB, NOT served)"
     )
-    typer.echo(f"  {cfg.codec_fixture_path.name}  (key {codec_fixture['key']})")
 
     _echo_header("Result")
-    typer.echo(f"  puzzles   {len(puzzles):,}")
-    typer.echo(f"  #{puzzles[0].id} {puzzles[0].date}  ->  #{puzzles[-1].id} {puzzles[-1].date}")
+    typer.echo(f"  added     {len(fresh):,}")
+    typer.echo(f"  archive   {len(archive):,}  of an eventual {cfg.target_approved}")
+    typer.echo(f"  covers    {archive[0].date}  ->  {archive[-1].date}")
+    remaining = cfg.target_approved - len(archive)
+    if remaining > 0:
+        typer.secho(
+            f"\n  {remaining} to go. Review more, then run `linkage export` again.",
+            fg=typer.colors.GREEN,
+        )
     typer.secho("\nNext:  pytest", fg=typer.colors.GREEN)
 
 

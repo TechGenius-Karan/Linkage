@@ -683,7 +683,8 @@ linkage build-graph                       # Phase 1, run once (~20 min)
 linkage diagnose --samples 200            # Phase 2, FIRST — yield funnel (§7.9.3)
 linkage generate --until-approved 365     # emits candidates.json ranked by quality
 linkage review                            # human accept/reject -> approved.json
-linkage export --start-date 2026-10-01    # -> web/public/puzzles/*.json + manifest.json
+linkage export                            # append ~a month; repeat as you review
+                                          # -> web/public/puzzles/*.json + manifest.json
                                           #    + verification-subgraph.json (§7.10)
 ```
 
@@ -784,7 +785,34 @@ From a fixed pool of 900 real candidates:
 
 **The word cap is the only binding constraint** — duplicate pairs and repeated chains accounted for zero rejections at every setting.
 
-> ⚠️ **This makes §7.7's "generate ~800, review over two evenings" wrong by roughly 3×.** At the current cap of 3, a full year needs on the order of **2,500 approved candidates**, which is a materially larger review burden than planned. The lever is `MAX_WORD_REUSE`: moving it to 5 nearly halves the work and still means no word appears more than five times in a year. That is a product call about variety versus review effort — Risk #21.
+#### The archive grows a month at a time *(decided)*
+
+The numbers above assume you must review a whole year before launching. **You do not, and pretending otherwise turns curation into a wall nobody climbs.**
+
+`export` appends a **batch** (`BATCH_SIZE = 30`, about a month) to whatever already exists. Existing puzzles keep their ids and dates — numbers people have already shared never move — and the new batch picks up the day after the last one.
+
+```
+linkage export              # first run  -> puzzles #1-30,  Oct 1 - Oct 30
+linkage export              # next month -> puzzles #31-60, Oct 31 - Nov 29
+linkage export --count 60   # a bigger batch when you have the appetite
+linkage export --replace    # rebuild from scratch (rarely wanted)
+```
+
+**Diversity spans the archive, not the batch.** `select_diverse` is seeded with the words, endpoint pairs and chains already shipped, so month two cannot quietly reuse month one's vocabulary. That is the property that makes incremental building safe rather than a slow-motion way to end up with a repetitive year.
+
+Measured over three real batches:
+
+| Batch | Added | Archive | Skipped for word cap |
+|---|---:|---:|---:|
+| Month 1 | 30 | 30 | 8 |
+| Month 2 | 30 | 60 | 50 |
+| Month 3 | 30 | 90 | 161 |
+
+**Launching needs roughly 40 approved candidates, not 2,500.** The skip rate climbs as the archive fills — which is the cap doing its job — but by then the game is live and curation is a monthly habit rather than a prerequisite.
+
+> Approved candidates are never consumed destructively: any that a batch skips stay in the pool for the next one. Reviewing is cumulative, so a light session still moves the archive forward.
+
+The `MAX_WORD_REUSE` lever from the table above remains available if even the monthly cadence feels heavy — raising it to 5 roughly halves the candidates needed per batch, and still means no word appears more than five times across the year.
 
 ### 7.8 Determinism Checklist
 
@@ -1297,7 +1325,7 @@ Rate-limit by IP hash, cap `attempts` to `0..MAX_ATTEMPTS`, and treat the whole 
 - [ ] `data/exporters.py` — `candidates.json`, `approved.json`, per-day files, `manifest.json`, **`verification-subgraph.json`** (§7.10).
 - [ ] `linkage generate --until-approved 365` — tops up from a new seed offset, skipping decided hashes.
 - [ ] `review.py` + `linkage review` — the curation TUI (§7.7).
-- [ ] `linkage export --start-date` — hand-pick the launch week, shuffle the rest with a fixed seed, assign dates.
+- [x] `linkage export` — appends a batch; launch week hand-picked from the first batch, later batches shuffled with a fixed seed.
 - [ ] **Corpus-level QC at export** (§7.7.1): word-reuse cap, no duplicate `(start, end)`, no repeated chains. **Fail loudly**, never ship quietly.
 - [ ] Strip `meta` from the per-day files (§3.1).
 - [ ] Run the determinism checklist (§7.8): generate twice, `diff` must be empty.
@@ -1469,7 +1497,7 @@ Actions:
 | 18 | **Same-stem or overlapping words in one bank** | Medium | Looks sloppy; `moon` next to `moons` | Porter-stem comparison plus a substring check across the bank at selection time (§7.6). |
 | 19 | ~~**Degree-percentile pruning is deleting good puzzle words**~~ | ~~Confirmed~~ **RESOLVED** | — | **Automatic pruning removed; the curated `GENERIC_HUBS` list does this job** (§7.3). All 75 words restored, `animal` through `bridge`. Degree is the wrong signal — it measures connectedness, not genericness. `build-graph` still reports the top 40 by degree as candidates for the curated list. |
 | 20 | ~~**Generator enumerates paths exhaustively and never finishes**~~ | ~~High~~ **RESOLVED** | — | Per-pair path budget (`MAX_PATHS_PER_PAIR`) plus a pair budget, and one puzzle per endpoint pair. 900 candidates now come from 2,679 pairs in ~4 minutes. |
-| 21 | **Review burden is ~3× the plan's estimate** | **Confirmed in Phase 2** | 2,500 candidates to review, not 800 — many more evenings than budgeted | Diversity selection yields only ~15% of candidates at `MAX_WORD_REUSE=3` (§7.7.1 table). **Decision needed:** keep the cap at 3 and accept the review load, or raise it to 5 (halves the work; no word appears more than 5× a year). Variety versus effort — a product call, not a defect. |
+| 21 | ~~**Review burden is ~3× the plan's estimate**~~ | ~~Confirmed~~ **RESOLVED** | — | **The archive grows a month at a time** (§7.7.1). Launch needs ~40 approved candidates, not 2,500; `export` appends batches and diversity spans the whole archive so later months cannot reuse earlier vocabulary. Raising `MAX_WORD_REUSE` to 5 remains available if even monthly feels heavy. |
 
 ---
 
@@ -1587,7 +1615,8 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | `DISTRACTOR_POOL_SIZE` | 120 | Candidates each strategy proposes before ranking. |
 | `BANK_SIZE_MIN` | 10 | Fallback when too few uniqueness-safe distractors exist (Risk #16). |
 | `HUB_DEGREE` (scoring) | 100 | Degree at which a step counts as fully generic (§7.7.2). |
-| `TARGET_APPROVED` | 365 | `generate --until-approved` tops up until this many are accepted. |
+| `BATCH_SIZE` | 30 | Puzzles added per `export` -- about a month. The archive grows incrementally (§7.7.1). |
+| `TARGET_APPROVED` | 365 | The eventual archive depth, **not** a precondition for launching. |
 | `LAUNCH_WEEK_SIZE` | 7 | Hand-picked easy puzzles at the front of the archive (§7.7.1). |
 | `SEED` | 20261001 | Any change re-rolls every puzzle. |
 | `EPOCH_DATE` | `2026-10-01` | Puzzle #1. Must match `manifest.json` and every `date` field. |
@@ -1629,8 +1658,9 @@ linkage build-graph                     # ~20 min, needs the 1.2 GB ConceptNet d
 linkage diagnose --samples 200          # yield funnel — RUN THIS BEFORE GENERATING (§7.9.3)
 linkage generate --until-approved 365   # ranked candidates.json; tops up across runs
 linkage review                          # human accept/reject -> approved.json
-linkage export --start-date 2026-10-01  # per-day files + manifest + verification subgraph
-linkage export --verify-only            # refresh the subgraph and re-run invariants
+linkage export                          # append ~a month of puzzles to the archive
+linkage export --count 60               # a bigger batch
+linkage export --replace                # rebuild the archive from scratch
 
 pytest                                  # fixtures only — no dataset needed
 

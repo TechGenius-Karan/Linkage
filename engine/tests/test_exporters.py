@@ -195,6 +195,81 @@ def test_candidates_are_written_best_first(cfg):
     assert [r["quality"] for r in rows] == [0.9, 0.6, 0.3]
 
 
+# --------------------------------------------------------------------------
+# Incremental batches -- the archive grows a month at a time
+# --------------------------------------------------------------------------
+
+
+def test_next_slot_on_an_empty_archive_starts_at_the_epoch():
+    assert exporters.next_slot([], "2026-10-01") == (1, "2026-10-01")
+
+
+def test_next_slot_continues_the_day_after_the_last_puzzle():
+    existing = exporters.assign_dates([make_candidate() for _ in range(3)], "2026-10-01")
+    assert exporters.next_slot(existing, "2026-10-01") == (4, "2026-10-04")
+
+
+def test_next_slot_crosses_a_month_boundary():
+    existing = exporters.assign_dates([make_candidate() for _ in range(31)], "2026-10-01")
+    first_id, first_date = exporters.next_slot(existing, "2026-10-01")
+    assert (first_id, first_date) == (32, "2026-11-01")
+
+
+def test_read_archive_is_empty_before_anything_ships(cfg):
+    assert exporters.read_archive(cfg) == []
+
+
+def test_read_archive_roundtrips_what_was_written(cfg):
+    puzzles = exporters.assign_dates([make_candidate() for _ in range(4)], "2026-10-01")
+    exporters.write_puzzles(cfg, puzzles)
+    assert exporters.read_archive(cfg) == puzzles
+
+
+def test_read_archive_ignores_the_manifest(cfg):
+    puzzles = exporters.assign_dates([make_candidate()], "2026-10-01")
+    exporters.write_puzzles(cfg, puzzles)
+    exporters.write_manifest(cfg, puzzles)
+    assert len(exporters.read_archive(cfg)) == 1
+
+
+def test_appending_a_batch_leaves_earlier_puzzles_untouched(cfg):
+    """The whole point of monthly batches: numbers and dates people have
+    already shared must never move."""
+    first = exporters.assign_dates([make_candidate(start=f"s{i}") for i in range(3)],
+                                   "2026-10-01")
+    exporters.write_puzzles(cfg, first)
+    before = {p.name: p.read_text() for p in cfg.puzzles_dir.glob("2*.json")}
+
+    first_id, first_date = exporters.next_slot(exporters.read_archive(cfg), "2026-10-01")
+    second = exporters.assign_dates(
+        [make_candidate(start=f"t{i}") for i in range(3)], first_date, first_id=first_id
+    )
+    exporters.write_puzzles(cfg, second)
+
+    for name, text in before.items():
+        assert (cfg.puzzles_dir / name).read_text() == text
+
+    archive = exporters.read_archive(cfg)
+    assert [p.id for p in archive] == [1, 2, 3, 4, 5, 6]
+    assert [p.date for p in archive] == [
+        "2026-10-01", "2026-10-02", "2026-10-03",
+        "2026-10-04", "2026-10-05", "2026-10-06",
+    ]
+
+
+def test_manifest_covers_the_whole_archive_after_appending(cfg):
+    first = exporters.assign_dates([make_candidate() for _ in range(2)], "2026-10-01")
+    exporters.write_puzzles(cfg, first)
+    second = exporters.assign_dates([make_candidate() for _ in range(2)],
+                                    "2026-10-03", first_id=3)
+    exporters.write_puzzles(cfg, second)
+
+    manifest = json.loads(exporters.write_manifest(cfg, first + second).read_text())
+    assert manifest["count"] == 4
+    assert manifest["epoch"] == "2026-10-01"
+    assert manifest["firstId"] == 1
+
+
 def test_reading_missing_candidates_gives_an_actionable_error(cfg):
     with pytest.raises(FileNotFoundError, match="linkage generate"):
         exporters.read_candidates(cfg.candidates_path)
