@@ -1,0 +1,34 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# --- Node ---
+node_modules/
+dist/
+.vite/
+
+# --- Large, regenerable data (planning.md 12) ---
+# The ConceptNet dump is ~1.2 GB and the graph is rebuildable from it.
+data/raw/
+data/*.gpickle
+data/*.sha256
+
+# --- Generator intermediates (planning.md 12) ---
+engine/candidates.json
+engine/approved.json
+
+# NOTE: engine/fixtures/ is deliberately NOT ignored. It is committed so CI
+# can run the golden test without the dataset (planning.md 7.10).
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

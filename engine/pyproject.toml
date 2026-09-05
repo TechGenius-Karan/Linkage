@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linkage-engine"
+version = "0.1.0"
+description = "Offline puzzle generation engine for the Linkage daily word game"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Versions are pinned exactly. Puzzle generation must be reproducible years
+# from now (planning.md 7.8) -- wordfreq in particular ships bundled frequency
+# data that changes between releases, which would silently alter the entire
+# vocabulary and therefore every puzzle.
+dependencies = [
+    "networkx==3.4.2",
+    "wordfreq==3.1.1",
+    "nltk==3.9.1",
+    "typer==0.27.2",
+    "click==8.5.0",
+    "orjson==3.10.15",
+    "tqdm==4.67.1",
+    "requests==2.32.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+]
+
+[project.scripts]
+linkage = "linkage_engine.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
