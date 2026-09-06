@@ -6,6 +6,27 @@
     <title>Linkage</title>
     <meta name="description" content="A daily mini word puzzle about the hidden connective tissue between ideas." />
     <meta name="color-scheme" content="light dark" />
+
+    <!--
+      Applies the stored theme before the browser paints (docs/design.md 2.1).
+
+      This has to be inline and synchronous. The preference lives in
+      localStorage, localStorage is only reachable from JS, and anything that
+      waits for React means every load paints the wrong background first -- a
+      white flash for someone who chose dark, which is exactly the person who
+      chose dark to avoid it. ~120 bytes, no request.
+
+      The key is `THEME_KEY` in src/engine/types.ts; tests/theme.test.ts keeps
+      the two in step. try/catch because Safari private mode throws on access.
+      Anything other than light/dark is ignored, so `system` and any garbage
+      both fall through to `color-scheme: light dark`.
+    -->
+    <script>
+      try {
+        var t = localStorage.getItem('linkage:v1:theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

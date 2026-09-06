@@ -89,10 +89,57 @@ meaning.
 **Two costs come with the toggle**, and they are the reason it was originally
 declined rather than an argument against it now:
 
-- The choice has to persist, so settings needs storage.
+- The choice has to persist, so settings needs storage. Key: `THEME_KEY` in
+  `src/engine/types.ts`, values `light` / `dark` / `system`.
 - `data-theme` must be on `<html>` **before first paint**, or every load
-  flashes the wrong ground. That means a small inline script in `index.html`
-  reading the stored value — it cannot wait for React to mount.
+  flashes the wrong ground.
+
+#### The pre-paint script *(decided, shipped)*
+
+```html
+<script>
+  try {
+    var t = localStorage.getItem('linkage:v1:theme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
+```
+
+Inline, synchronous, first thing in `<head>`. ~120 bytes and no network
+request. The constraint is not negotiable: the preference lives in
+`localStorage`, `localStorage` is reachable only from JS, so *something* must
+run before paint. The only choice is whether that something is 120 bytes or a
+whole framework boot.
+
+Measured before deciding — with the app bundle stalled, an override of `dark`
+on a light OS resolves to `#1a1815` immediately, and nothing in `src/` sets
+`data-theme` at all, so the inline script is provably the only source.
+
+**Why the flash was not simply accepted.** On localhost the gap between first
+paint and React mounting is ~28 ms, which nobody would notice. That is the
+wrong measurement: on a mid-range phone on 4G with a cold cache it is 150–400
+ms, and it lands hardest on the person who chose dark precisely to avoid a
+white screen at night.
+
+**It is already smaller than it looks**, because `color-scheme: light dark`
+means the default follows the OS before any JS runs. Only an override that
+*disagrees* with the OS can flash at all — someone on a dark OS who chose dark
+never had a problem. That mitigation is free; the script closes the rest.
+
+Rejected alternatives: a CSS-only `:has()` toggle (state dies on reload, so it
+does not solve persistence, which is the entire problem); a server-read cookie
+(needs a server, and §9.1 is static by design); hiding the page until JS runs
+(swaps a colour flash for a blank one and still blocks on JS).
+
+Other things (`system` included) fall through to `color-scheme: light dark`, so
+a corrupt stored value degrades to following the OS rather than to a broken
+page. `try/catch` because Safari private mode throws on access.
+
+> The script is hand-written into `index.html`, where TypeScript never sees it
+> and the bundler never rewrites it. `tests/theme.test.ts` asserts it reads the
+> same key `THEME_KEY` defines, sets `data-theme`, guards storage access, and
+> sits ahead of the module bundle — otherwise a rename on the TypeScript side
+> would reintroduce the flash with nothing failing anywhere.
 
 ### 2.2 Feedback colours
 

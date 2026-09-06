@@ -22,6 +22,20 @@ export const BANK_MAX = 12;
 
 export const SCHEMA_VERSION = 1;
 
+/**
+ * Theme preference (docs/design.md 2.1).
+ *
+ * Read twice: once by the settings control, and once by an inline script in
+ * `index.html` that runs before first paint. The second reader is the reason
+ * this constant exists -- a rename that only updated the TypeScript would
+ * leave the page flashing the wrong background with nothing failing.
+ * `tests/theme.test.ts` asserts the two agree.
+ */
+export const THEME_KEY = 'linkage:v1:theme';
+
+/** `system` means "follow the OS", and is the absence of an override. */
+export type ThemePreference = 'light' | 'dark' | 'system';
+
 /** First puzzle's date. Month is 1-indexed here and converted at the boundary. */
 export const EPOCH_DATE = '2026-10-01';
 
