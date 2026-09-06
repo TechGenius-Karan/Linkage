@@ -57,28 +57,42 @@ it is the whole difference between "app" and "paper".
 :root:not([data-theme="light"]) { }        /* see §2.1 */
 ```
 
-### 2.1 Dark
+### 2.1 Dark, and the override
 
 Not an inversion — a second warm ramp. Inverting a warm light theme gives a
 blue-grey dark theme, which loses the only property the palette was chosen for.
 
+Both values live on one line via `light-dark()`, which resolves against the
+`color-scheme` property:
+
 ```css
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground:     #1A1815;
-    --surface:    #24211D;
-    --rule:       #35312B;
-    --ink:        #EFE9E1;
-    --ink-muted:  #9C948A;
-    --accent:     #6FB5A5;
-    --accent-sub: #23332F;
-    --heart:      #E29068;
-  }
+:root {
+  color-scheme: light dark;                    /* follow the OS   */
+  --ground: light-dark(#faf7f2, #1a1815);
+  /* ...one line per token... */
 }
+:root[data-theme='light'] { color-scheme: light; }   /* forced */
+:root[data-theme='dark']  { color-scheme: dark;  }   /* forced */
 ```
 
-Every pair above clears 4.5:1 for text on its own ground (§8.6). `--rule` is
-decorative and deliberately does not — it is never the sole carrier of meaning.
+> **Why not `@media (prefers-color-scheme: dark)`.** That was the first shape,
+> and it made the override one-directional without saying so: the dark values
+> existed only inside the media query, so a player on a light OS could select
+> "dark" and stay light. Measured, not theorised — it is why this section was
+> rewritten. Defining the dark ramp a second time outside the query would also
+> work and would leave eight hex pairs free to drift apart.
+
+Every pair clears 4.5:1 for text on its own ground (planning.md 8.6). `--rule`
+is decorative and deliberately does not — it is never the sole carrier of
+meaning.
+
+**Two costs come with the toggle**, and they are the reason it was originally
+declined rather than an argument against it now:
+
+- The choice has to persist, so settings needs storage.
+- `data-theme` must be on `<html>` **before first paint**, or every load
+  flashes the wrong ground. That means a small inline script in `index.html`
+  reading the stored value — it cannot wait for React to mount.
 
 ### 2.2 Feedback colours
 
@@ -279,6 +293,6 @@ line.
 | An icon set | Three glyphs — heart, share, question mark. Inline SVG. |
 | Webfonts | §3. Only if Android renders the system serif badly. |
 | An animation library | §6 is six CSS transitions. |
-| A theme switcher UI | `prefers-color-scheme` follows the OS. A manual toggle is a preference to persist and a state to test, for a choice the player already made once. |
+| ~~A theme switcher UI~~ | **Reversed.** A dark-mode control ships in settings (§2.2). The original reasoning — the player already answered this at the OS level — holds for *most* people and not for the ones who want the game darker than their laptop. |
 | Illustration, mascot, empty-state art | Competes with the words. |
 | A loading skeleton | The payload is ~1 KB. It is never on screen long enough to skeleton. |
