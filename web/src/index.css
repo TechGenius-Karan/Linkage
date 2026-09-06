@@ -2,38 +2,50 @@
 
 /* ------------------------------------------------------------------
    Tokens — docs/design.md 2. Two hues over a warm neutral ramp.
-   Defined as plain custom properties, not @theme values, so the dark
-   ramp can replace them. @theme inline below exposes them to Tailwind.
+
+   `light-dark()` resolves against the `color-scheme` property, so each
+   value is written once and all three states fall out of one line each:
+
+     color-scheme: light dark   -> follow the OS          (default)
+     color-scheme: light        -> forced light           (toggle)
+     color-scheme: dark         -> forced dark            (toggle)
+
+   The earlier shape put the dark ramp inside
+   `@media (prefers-color-scheme: dark)`, which quietly made the override
+   one-directional: a player on a light OS could switch to light (no-op) but
+   never to dark, because no rule outside that media query defined a dark
+   value. Duplicating the ramp into a second selector would have worked and
+   left eight hex values to drift apart. This has no second copy.
+
+   The dark ramp is not an inversion — inverting a warm light theme yields a
+   blue-grey dark theme and loses the only property the palette was chosen
+   for. It is a second warm ramp.
    ------------------------------------------------------------------ */
 
 :root {
-  --ground: #faf7f2;
-  --surface: #ffffff;
-  --rule: #e3dcd2;
-  --ink: #1f1d1a;
-  --ink-muted: #6b6560;
-  --accent: #2f6f63;
-  --accent-sub: #e7efec;
-  --heart: #c96f4a;
+  /* Honour the OS until a stored preference overrides it. */
+  color-scheme: light dark;
+
+  --ground: light-dark(#faf7f2, #1a1815);
+  --surface: light-dark(#ffffff, #24211d);
+  --rule: light-dark(#e3dcd2, #35312b);
+  --ink: light-dark(#1f1d1a, #efe9e1);
+  --ink-muted: light-dark(#6b6560, #9c948a);
+  --accent: light-dark(#2f6f63, #6fb5a5);
+  --accent-sub: light-dark(#e7efec, #23332f);
+  --heart: light-dark(#c96f4a, #e29068);
 
   --type-word: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --type-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Not an inversion — a second warm ramp. Inverting a warm light theme
-   yields a blue-grey dark theme and loses the only property the palette
-   was chosen for. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --ground: #1a1815;
-    --surface: #24211d;
-    --rule: #35312b;
-    --ink: #efe9e1;
-    --ink-muted: #9c948a;
-    --accent: #6fb5a5;
-    --accent-sub: #23332f;
-    --heart: #e29068;
-  }
+/* The two overrides. Set by the theme control in settings; applied to <html>
+   before first paint, or the page flashes the wrong ground on every load. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 @theme inline {

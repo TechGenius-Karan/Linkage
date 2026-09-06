@@ -731,7 +731,7 @@ the pointer handlers and the row geometry, and each `<Slot>` receives a
 |---|---|---|
 | **How to play** | Planned (§ Phase 5) | Was "shown once on first visit". Now also reachable any time, which is strictly better — people forget the rules by day three. |
 | **Statistics** | Planned (`StatsPanel`) | Streak, win %, distribution. No change. |
-| **Settings** | **New — contents undecided** | Needs a decision about *what* is in it. `docs/design.md` deliberately rules out a theme toggle (the OS already answers that question). Candidates: reduced motion override, hard reset of local stats. If nothing survives scrutiny, the button should not ship. |
+| **Settings** | **New — one agreed item** | **Dark mode**, as a control rather than an OS follow (`docs/design.md` 2.1, which previously ruled this out). It brings two costs: the choice must persist, and `data-theme` must land on `<html>` before first paint or every load flashes the wrong background — so an inline script in `index.html`, not React. Other candidates still open: reduced-motion override, hard reset of local stats. |
 | **Hint** | **New — reverses a documented decision** | See below. |
 
 > ⚠️ **A hint system is currently listed in §14 as explicitly out of scope**,
