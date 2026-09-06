@@ -135,3 +135,25 @@ def test_fixture_includes_a_multibyte_probe(tmp_path):
     probe = fixture["expected"]["_utf8Probe"]
     assert not probe.isascii()
     assert decode(fixture["encoded"], fixture["key"])["_utf8Probe"] == probe
+
+
+def test_committed_fixture_matches_the_current_encoder():
+    """The committed fixture is what the TypeScript suite actually decodes.
+
+    Every other test here writes to `tmp_path`, so the encoder could change
+    while the file on disk -- the one the TS test reads -- quietly keeps
+    describing the old contract. TS would then pass against a stale fixture
+    and fail on the first real puzzle, which is exactly the failure this
+    fixture exists to prevent (Risk #3).
+
+    Regenerate with `linkage emit-codec-fixture`.
+    """
+    from linkage_engine.config import DEFAULT
+
+    path = DEFAULT.codec_fixture_path
+    assert path.exists(), f"{path} is missing -- run `linkage emit-codec-fixture`"
+
+    committed = json.loads(path.read_text(encoding="utf-8"))
+    assert committed == write_fixture(path), (
+        "codec-fixture.json is stale -- run `linkage emit-codec-fixture`"
+    )

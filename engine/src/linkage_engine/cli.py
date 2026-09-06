@@ -704,6 +704,22 @@ def export(
     typer.secho("\nNext:  pytest", fg=typer.colors.GREEN)
 
 
+@app.command("emit-codec-fixture")
+def emit_codec_fixture() -> None:
+    """Write the payload `web/tests/codec.test.ts` must decode.
+
+    This used to be reachable only from the tail of `export`, which meant the
+    one artefact that de-risks the cross-language codec (Risk #3) could not be
+    produced until the whole curation pipeline had run. The client needs it in
+    Phase 3; export is not a Phase 3 concern.
+    """
+    cfg = Config()
+    fixture = codec.write_fixture(cfg.codec_fixture_path)
+    typer.echo(f"{cfg.codec_fixture_path.relative_to(cfg.repo_root)}")
+    typer.echo(f"  key      {fixture['key']}")
+    typer.echo(f"  encoded  {len(fixture['encoded'])} base64 chars")
+
+
 @app.command()
 def version() -> None:
     """Print the engine version."""
