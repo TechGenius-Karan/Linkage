@@ -194,9 +194,24 @@ Do not add a second ornament. If the board looks bare, the fix is spacing.
 
 | State | Treatment |
 |---|---|
-| `empty` | Transparent fill, 1px dashed `--rule` border |
+| `empty` | `--ground` fill, 1px dashed `--rule` border |
 | `filled` | `--surface` fill, 1px solid `--rule` border, serif word |
+| `dragging` | Lifted: shadow to `0 4px 10px rgb(31 29 26 / .10)`, `z-index` above its siblings, follows the pointer on the Y axis only |
 | `focus` | 2px `--accent` outline, offset 2px — the same ring used everywhere |
+
+> **Slot fills are opaque, including when empty.** The ladder rule is drawn
+> behind them, so a transparent empty slot lets the line run straight through
+> the middle of the box and it reads as a strikethrough rather than a spine.
+> Opaque fills clip it to the gaps, which is the intended look: a dotted
+> connector, not a continuous bar.
+
+**Slide feedback.** The slot being dragged lifts; the slot it would exchange
+with dims to 60% opacity. Nothing reflows and nothing animates into place until
+the pointer is released — a ladder that rearranges itself mid-drag makes the
+target impossible to aim at. On release, both slots settle over 160ms.
+
+`touch-action: manipulation` on every slot and tile, or a double-tap zooms the
+page instead of clearing the slot (§2.4).
 
 **Lives** — `♥` in `--heart`, spent ones `♥` in `--rule`. Outline glyphs and
 greyed-out fills both read as "empty"; a filled-but-drained heart reads as
@@ -232,13 +247,23 @@ Mobile-first, single column, no horizontal scroll at 320px. Ordered by how
 often a thing is touched — most-tapped lowest, where the thumb is.
 
 ```
-  Header            title · #142 · stats · help      (rarely touched)
+  Header            Linkage  #142        ? ⚙ ▤ ✦    (rarely touched)
   Board             anchors + 4 slots
   Lives + feedback  ♥♥♥♥♥   "3 of 4 correct"
   Attempt history   past rows, collapsed to counts
   Word bank         11 tiles                         (tapped most)
   Check             full-width button                (tapped once per attempt)
 ```
+
+**The four header buttons** — hint, statistics, how to play, settings — sit in
+a right-aligned row opposite the wordmark. They are 40×40px icon buttons with
+a 44px hit area, `--ink-muted` at rest and `--ink` on hover, no fill and no
+border. Four affordances in the header is already at the limit of what stays
+calm; a fifth needs a menu instead.
+
+They are the only icons in the product, which is why they must be genuinely
+plain — a single stroke weight, no filled shapes, nothing that reads as a
+brand mark competing with the wordmark beside them.
 
 The board must never require a scroll on a phone (§ Phase 5). If it does, the
 first thing to cut is `--gap-block`, then attempt history collapses to a single

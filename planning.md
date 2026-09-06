@@ -103,18 +103,75 @@ A vertical ladder: Start word fixed at the top, End word fixed at the bottom, fo
 - **7** are semantic red herrings — see §7.6 for how they are chosen.
 - Bank order is **shuffled at generation time** with a seed derived from the puzzle ID, so tile positions are stable across refreshes and identical for every player.
 
-### 2.4 Interaction Model — Tap-to-Place *(decided)*
+### 2.4 Interaction Model — Tap to Place, Slide to Reorder *(decided)*
 
-**v1 ships tap-to-place only.**
+Two gestures, each owning one job. **Tap fills the ladder from the bank; slide
+rearranges what is already in it.**
+
+**Placing — tap, unchanged from the original design:**
 
 1. Tap a bank tile → it enters `selected` state.
-2. Tap a slot → the tile moves into the slot.
-3. Tap a filled slot with nothing selected → the tile returns to the bank.
-4. Tap a filled slot while a tile is selected → the two **swap**.
+2. Tap an empty slot → the tile moves in.
+3. Tap a *filled* slot while holding a tile → the two **swap**.
 
-**Why not drag-and-drop in v1:** native HTML5 drag-and-drop does not fire on touch devices, so "drag" on mobile means shipping a library or hand-rolling pointer events. Tap-to-place needs zero dependencies, behaves identically on mobile and desktop, and is keyboard-accessible for free.
+**Reordering — slide:**
 
-**Phase 5** layers `@dnd-kit/core` on top as a pure enhancement — its sensors dispatch the **same** `PLACE_TILE` / `REMOVE_TILE` reducer actions. The game logic never learns that drag exists.
+4. Drag a filled slot up or down → it **exchanges** with the slot it lands on.
+
+**Removing — double-tap:**
+
+5. Double-tap a filled slot → the tile returns to the bank.
+
+> ⚠️ **Consequence: a single tap on a filled slot while holding nothing now
+> does nothing.** That gesture used to be "return to bank"; moving removal to
+> double-tap leaves it with no job, and a tap that does nothing reads as
+> broken. This is the accepted cost of making removal deliberate — accidental
+> single taps were destroying placements. Revisit if playtesting shows people
+> tapping and getting confused.
+
+**Why double-tap for removal:** a single tap is trivially easy to fire by
+accident on a phone, and losing a placement you were mid-way through reasoning
+about is the most annoying thing the board can do to you. Removal should cost
+a deliberate second tap.
+
+> ⚠️ **`touch-action: manipulation` is mandatory on slots and tiles.** Mobile
+> browsers interpret a double-tap as zoom, so without it the removal gesture
+> zooms the board instead of clearing a slot. This is not a nicety — it makes
+> the gesture unusable on the primary platform.
+
+#### Why a hand-rolled slide, not a drag library
+
+§8.5's `Slot` reorder is **four items in a fixed-height vertical column**,
+which is the easiest possible case for a drag: track the pointer's Y delta,
+divide by row height, clamp to `0..3`. That is Pointer Events and roughly
+seventy lines — `pointerdown` / `pointermove` / `pointerup` are already unified
+across mouse, touch and pen, which is the whole reason HTML5 drag-and-drop was
+rejected here in the first place (it does not fire on touch).
+
+`@dnd-kit` remains **out**. It exists to solve sortable lists across arbitrary
+containers with collision detection and keyboard sensors; we have one container
+of four rows. The bank → slot direction stays tap-only, so the library would be
+earning its bundle size on a single interaction.
+
+**The reducer never learns that dragging exists.** The gesture is presentation;
+it dispatches `MOVE_TILE { from, to }` and nothing else. Tier boundary intact
+(§4.2), and the reducer stays testable as a plain function call.
+
+#### Keyboard and screen-reader equivalents *(not optional)*
+
+Double-tap and slide are both pointer gestures with no keyboard analogue, and
+§8.6 is a commitment rather than an aspiration. Every gesture therefore has a
+key that does the same thing to a focused slot:
+
+| Gesture | Key on a focused slot | Action |
+|---|---|---|
+| Tap bank tile, tap slot | `Enter` / `Space` | Place the held tile |
+| Slide up / down | `↑` / `↓` | Exchange with the slot above / below |
+| Double-tap | `Backspace` / `Delete` | Return the tile to the bank |
+| — | `Escape` | Clear the current selection |
+
+Because slots and tiles are real `<button>`s, this is key handling on one
+component, not a parallel interaction model.
 
 ### 2.5 Feedback Model — Count-Only *(decided)*
 
@@ -569,8 +626,9 @@ interface GameState {
 
 type Action =
   | { type: 'SELECT_TILE'; tileId: string }
-  | { type: 'PLACE_TILE';  slot: number }     // places the currently selected tile
-  | { type: 'REMOVE_TILE'; slot: number }
+  | { type: 'PLACE_TILE';  slot: number }         // places the currently selected tile
+  | { type: 'MOVE_TILE';   from: number; to: number }  // slide / arrow keys — exchange
+  | { type: 'REMOVE_TILE'; slot: number }         // double-tap / Backspace
   | { type: 'SUBMIT' }
   | { type: 'RESTORE'; state: GameState };
 ```
@@ -590,6 +648,12 @@ This keeps the reducer a pure function of `(state, action)` for `useReducer`, ke
 - `correctCount === 4` → `won`; otherwise `attempts.length === MAX_ATTEMPTS` → `lost`.
 - `PLACE_TILE` onto a filled slot **swaps**; it never silently discards a tile.
 - A tile already in a slot cannot be placed into a second slot.
+- `MOVE_TILE` **exchanges** the two slots' contents, including when the
+  destination is empty (an exchange with nothing is a move). `from === to` is a
+  no-op, and both indices are bounds-checked — a gesture that reports a bad
+  index must not corrupt the board.
+- `MOVE_TILE` and `REMOVE_TILE` do **not** clear `selectedTile`. Reordering the
+  ladder while holding a bank tile is a legitimate thing to want to do.
 
 ### 8.3 Daily Index — The DST Trap
 
@@ -636,20 +700,58 @@ export class HttpPuzzleRepository implements PuzzleRepository {
 
 ```
 <App>                          reads repo + store, owns useReducer, renders states
-├── <Header>                   title, puzzle number, stats + help buttons
-├── <Board>
+├── <Header>
+│   ├── title + puzzle number
+│   └── <IconButton × 4>       hint · stats · how-to-play · settings
+├── <Board>                    owns the slide gesture; dispatches MOVE_TILE
 │   ├── <AnchorWord fixed>     START
-│   ├── <Slot × 4>             empty | filled | selected
+│   ├── <Slot × 4>             empty | filled | dragging
 │   └── <AnchorWord fixed>     END
 ├── <WordBank>
 │   └── <Tile × 11>            idle | selected | placed
 ├── <AttemptHistory>           past attempts as "N of 4 correct" rows
-├── <SubmitBar>                Check button + <LivesMeter> (3 hearts)
+├── <SubmitBar>                Check button + <LivesMeter>
 ├── <ShareModal>               on win/loss — emoji grid + copy
-└── <StatsPanel>               streak, distribution histogram
+├── <StatsPanel>               streak, distribution histogram
+├── <HowToPlay>                also opens from the header, not first visit only
+└── <SettingsPanel>            contents TBD (§8.5.1)
 ```
 
 Every component below `<App>` is presentational: props in, callbacks out, no `fetch`, no `localStorage`, no rule logic. Any one of them can be rendered in isolation with literal props.
+
+**The slide gesture lives on `<Board>`, not `<Slot>`.** A slot cannot know
+which slot it was dragged onto; only their common parent can. `<Board>` owns
+the pointer handlers and the row geometry, and each `<Slot>` receives a
+`dragOffset` prop plus its state. This keeps `<Slot>` a pure function of props
+— renderable in isolation with literal values, same as everything else here.
+
+### 8.5.1 The four header buttons
+
+| Button | Status | Notes |
+|---|---|---|
+| **How to play** | Planned (§ Phase 5) | Was "shown once on first visit". Now also reachable any time, which is strictly better — people forget the rules by day three. |
+| **Statistics** | Planned (`StatsPanel`) | Streak, win %, distribution. No change. |
+| **Settings** | **New — contents undecided** | Needs a decision about *what* is in it. `docs/design.md` deliberately rules out a theme toggle (the OS already answers that question). Candidates: reduced motion override, hard reset of local stats. If nothing survives scrutiny, the button should not ship. |
+| **Hint** | **New — reverses a documented decision** | See below. |
+
+> ⚠️ **A hint system is currently listed in §14 as explicitly out of scope**,
+> gated on "retention data says players are quitting mid-puzzle". Adding it is
+> a product call, and a legitimate one — but it is not a button, it is a
+> mechanic, and three questions have to be answered before Phase 4 can encode
+> it:
+>
+> 1. **What does a hint reveal?** One solution word in place? A narrowing of
+>    the bank? Which of your placed tiles is wrong — bearing in mind that last
+>    one hands over positional information the whole feedback model (§2.5) is
+>    built to withhold.
+> 2. **What does it cost?** Nothing, a life, or the win. If it is free, the
+>    optimal strategy is to take it, and the puzzle is a 3-word puzzle.
+> 3. **What does the share grid say?** A `3/5` earned with two hints is not
+>    the same result as one earned without, and the share text is the growth
+>    channel (§1.4). Either it is marked or the grid quietly lies.
+>
+> None of this blocks Phase 3 — the button renders and does nothing. It must
+> be settled before Phase 4.
 
 ### 8.6 Accessibility
 
@@ -663,6 +765,9 @@ Not decoration — the count-only feedback model makes most of it nearly free, s
 - [ ] `prefers-reduced-motion` disables tile and reveal animations.
 - [ ] Minimum 44×44 px touch targets.
 - [ ] Contrast ratio ≥ 4.5:1 in both light and dark themes.
+- [ ] **Every pointer gesture has a key** (§2.4): `↑`/`↓` exchange slots, `Backspace`/`Delete` returns a tile to the bank, `Escape` clears the selection. A gesture with no keyboard path is a feature half the plan's own accessibility section forbids.
+- [ ] `touch-action: manipulation` on slots and tiles, so double-tap removes rather than zooms.
+- [ ] A slot being dragged carries `aria-grabbed` and the live region announces the exchange (*"moved to slot 3"*) — the visual motion is invisible to a screen reader.
 - [ ] **Keyboard flow is the tap flow.** Tab to a tile → `Enter` selects → Tab to a slot → `Enter` places. Because both are real `<button>`s this needs no extra key handling; `Escape` clears the current selection.
 
 ### 8.7 Runtime Edge Cases
@@ -794,16 +899,16 @@ Rate-limit by IP hash, cap `attempts` to `0..MAX_ATTEMPTS`, and treat the whole 
 
 *Goal: the board renders from a real puzzle file. No interaction yet.*
 
-- [ ] `npm create vite@latest web -- --template react-ts`; add Tailwind.
-- [ ] `vite.config.ts` — set `base: '/Linkage/'` for GitHub Pages project sites.
-- [ ] `engine/types.ts` and `engine/ports.ts` (interfaces live in the domain tier).
-- [ ] ESLint `no-restricted-imports` on `src/engine/**` — no `react`, no DOM, no `fetch`.
-- [ ] `data/codec.ts` — the decoder; test it against the Python fixture **before** anything depends on it.
-- [ ] `HttpPuzzleRepository` + `validatePuzzle` runtime guard (all four checks, §8.4).
-- [ ] `LocalStorageProgressStore` with `try/catch` on every access.
-- [ ] Components: `Board`, `Slot`, `WordBank`, `Tile`, `AnchorWord` — presentational only. Display casing via CSS, never stored (§3.1.1).
-- [ ] `App.tsx` states: loading / **network error with retry** / **no puzzle today** / ready (§8.7); `main.tsx` as composition root.
-- [ ] **Verify:** today's puzzle renders with all 11 tiles; no game logic exists yet.
+- [x] `npm create vite@latest web -- --template react-ts`; add Tailwind.
+- [x] `vite.config.ts` — set `base: '/Linkage/'` for GitHub Pages project sites.
+- [x] `engine/types.ts` and `engine/ports.ts` (interfaces live in the domain tier).
+- [x] ESLint `no-restricted-imports` on `src/engine/**` — no `react`, no DOM, no `fetch`.
+- [x] `data/codec.ts` — the decoder; test it against the Python fixture **before** anything depends on it.
+- [x] `HttpPuzzleRepository` + `validatePuzzle` runtime guard (all four checks, §8.4).
+- [x] `LocalStorageProgressStore` with `try/catch` on every access.
+- [x] Components: `Board`, `Slot`, `WordBank`, `Tile`, `AnchorWord`, plus `Header` with its four buttons (§8.5.1) — presentational only. Display casing via CSS, never stored (§3.1.1).
+- [x] `App.tsx` states: loading / **network error with retry** / **no puzzle today** / ready (§8.7); `main.tsx` as composition root. `?puzzle=N` overrides the day, because the epoch is in the future and "today" resolves to nothing until launch.
+- [x] **Verify:** today's puzzle renders with all 11 tiles; no game logic exists yet.
 
 ### Phase 4 — Game Loop & Logic (TypeScript)
 
@@ -972,7 +1077,7 @@ Listed so they are not accidentally built, and so the reasoning survives:
 | Cross-device sync | Above. |
 | Puzzle archive / play past dailies | Post-launch. Requires a date picker and a rethink of streaks. |
 | Difficulty levels | We do not yet know what "hard" means empirically. Ship one difficulty, measure the distribution, then decide. |
-| Hint system | Retention data says players are quitting mid-puzzle. |
+| ~~Hint system~~ | **Moved in scope.** A hint button ships in the header; the mechanic behind it is undecided (§8.5.1). |
 | Server-rendered / native app | Never, for this product. Static is the whole point. |
 | i18n | ConceptNet is multilingual, so it is *possible* — but each language needs its own vocabulary, tuning, and curation pass. That is a second product. |
 | Redux / Zustand / TanStack Query | The state is 4 slots and an array; one `fetch` runs once per day. |
