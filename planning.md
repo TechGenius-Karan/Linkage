@@ -236,6 +236,116 @@ Five sits between those. That is why dev builds use it, and it is a starting pos
 
 **Deferred to Phase 4.** Nothing here blocks puzzle generation.
 
+### 2.5.3 Hints — Membership, Never Position *(decided)*
+
+**A hint confirms that a word is among the four answers. It never says where
+the word goes, and there is no reveal-a-row.**
+
+#### Why membership and not a reveal
+
+A reveal was the obvious first idea and it was dropped, for two reasons that
+are worth keeping so it is not proposed again.
+
+**It is orthogonal, and a reveal is not.** Count-only feedback (§2.5) withholds
+*position*. A membership hint gives *membership*. The two do not overlap at
+all, so no number of hints can leak the thing the feedback model exists to
+protect. A reveal hands over position directly — the one currency the whole
+design is built to ration.
+
+**A reveal collides with the feedback budget.** Using the ~2.3 bits per guess
+this document assumes:
+
+| | Arrangements left | Bits still needed | Reduction |
+|---|---:|---:|---:|
+| Nothing | 7,920 | 12.9 | — |
+| Confirm one word is in the answer | 2,880 | 11.5 | 2.8× |
+| Reveal one word in position | 720 | **9.5** | 11× |
+
+Across five lives, count-only feedback supplies roughly 9.2 bits. Solving from
+scratch needs ~12.9, so **feedback alone cannot get you there** and the
+remaining ~3.7 bits must come from semantic reasoning. That gap *is* the game.
+A single reveal drops the requirement to ~9.5 bits — near enough to the
+mechanical budget that permuting tiles without thinking becomes viable. That is
+the same failure §2.5.2 rejected the timer over: it does not make the game
+easier, it changes what the game rewards.
+
+> **The Crossclimb comparison does not transfer**, though it looks like it
+> should. In Crossclimb every row carries its own clue, so revealing a row
+> answers one clue and the ordering remains a separate puzzle. In Linkage a row
+> has no identity except its position — there is no clue for slot 2, slot 2
+> simply *is* "the thing between the start word and whatever follows". So
+> "reveal this row" means revealing the word **and** its position at once:
+> strictly more information than the same button in Crossclimb, in a game with
+> strictly less feedback.
+
+#### Which word gets confirmed *(decided)*
+
+**The second-most-obvious answer word, then the third.** Not the most obvious.
+
+Handing over the word the player was going to get anyway spends the hint on
+nothing — they press the button, learn what they already suspected, and are no
+better off. The second and third rungs are where a hint changes the position
+someone is actually in.
+
+Not the *least* obvious either. The hardest rung is usually the one carrying
+the puzzle's "aha", and a hint that hands that over leaves the rest feeling
+like admin.
+
+**"Obvious" is ranked by the mean weight of the two edges touching a slot** —
+the same edge weights §7.7.2 found to be the only signal that discriminated
+reviewer taste. High weight means both links to that word read as natural, so
+the word is easy to place.
+
+**The order must be deterministic and identical for every player.** A hint that
+is randomised per session makes two players' scores incomparable and hands one
+of them a luckier draw, which is exactly the property the share text cannot
+survive.
+
+#### Consequence: this changes the data contract
+
+`meta` is stripped at export (§3.1) and the client has no graph, so **the
+client cannot compute obviousness**. The ranking has to be precomputed by the
+engine and shipped:
+
+```jsonc
+{
+  "schemaVersion": 1,
+  // ...
+  "solution": ["ocean", "blue", "sky", "birds"],
+  "hints": ["blue", "sky"],   // ordered: 2nd- then 3rd-most-obvious
+  "bank": [ /* ... */ ]
+}
+```
+
+This is a **Phase 2 engine change plus a §3.1 contract change**, not purely
+Phase 4 work: `QualityScorer` already computes per-edge weights, so the ranking
+is a few lines, but the exporter, `validatePuzzle`, the golden test and the
+development fixture all move with it.
+
+> **No `schemaVersion` bump needed — this time.** Nothing has shipped and no
+> archive exists, so there is no deployed client to break. The moment real
+> puzzles are published, adding a field to this object becomes a breaking
+> change and the rule in §3 applies in full.
+
+#### Still open
+
+- [ ] **How many hints per puzzle.** Two is the working proposal — two confirmed
+      words still leaves two unknowns plus the entire ordering problem, where a
+      third would nearly hand the puzzle over. Decides how many words `hints`
+      carries.
+- [ ] **When the button unlocks.** Proposal: after the second failed attempt, so
+      a player's first encounter with a puzzle is always unaided.
+- [ ] **What the share text says.** Deliberately deferred (§2.7). The trap is
+      that doing nothing is itself a decision: an unmarked grid means a player
+      who used two hints posts the same `3/5` as one who used none, and once a
+      group works that out the number stops meaning anything. The leading
+      option is a binary clean-solve badge rather than a hint count — bragging
+      is binary, and one number plus one earned mark survives a WhatsApp group
+      better than two numbers to compare.
+- [ ] **Whether `hintsUsed` reaches `Stats`.** The reducer will track it on
+      `GameState` regardless, since the share decision above needs it later and
+      recording it costs nothing now.
+
 ### 2.6 The Daily Cycle
 
 - One puzzle per day, resetting at **midnight local time**.
@@ -296,6 +406,7 @@ The single interface between the Python engine and the TypeScript client. **Chan
   "start": "apple",
   "end": "ocean",
   "solution": ["newton", "gravity", "moon", "tide"],   // ordered, slots 1..4
+  "hints": ["newton", "moon"],                         // §2.5.3 — ordered, 2nd then 3rd most obvious
   "bank": [                                            // pre-shuffled; solution + distractors
     "pie", "gravity", "salt", "moon", "tide",
     "physics", "newton", "orbit", "wave", "cider", "comet"
@@ -732,26 +843,16 @@ the pointer handlers and the row geometry, and each `<Slot>` receives a
 | **How to play** | Planned (§ Phase 5) | Was "shown once on first visit". Now also reachable any time, which is strictly better — people forget the rules by day three. |
 | **Statistics** | Planned (`StatsPanel`) | Streak, win %, distribution. No change. |
 | **Settings** | **New — one agreed item** | **Dark mode**, as a control rather than an OS follow (`docs/design.md` 2.1, which previously ruled this out). It brings two costs: the choice must persist, and `data-theme` must land on `<html>` before first paint or every load flashes the wrong background — so an inline script in `index.html`, not React. Other candidates still open: reduced-motion override, hard reset of local stats. |
-| **Hint** | **New — reverses a documented decision** | See below. |
+| **Hint** | **Decided (§2.5.3)** | Confirms a word is in the answer, never its position. Reverses §14, and needs a field in the puzzle payload the engine has to compute. |
 
-> ⚠️ **A hint system is currently listed in §14 as explicitly out of scope**,
-> gated on "retention data says players are quitting mid-puzzle". Adding it is
-> a product call, and a legitimate one — but it is not a button, it is a
-> mechanic, and three questions have to be answered before Phase 4 can encode
-> it:
+> **Hint mechanics are settled in §2.5.3.** A hint confirms a word is among the
+> four answers and never says where it goes; there is no reveal-a-row. The
+> confirmed word is the second-then-third most obvious, precomputed by the
+> engine and shipped in the payload, because the client has no graph to rank
+> with.
 >
-> 1. **What does a hint reveal?** One solution word in place? A narrowing of
->    the bank? Which of your placed tiles is wrong — bearing in mind that last
->    one hands over positional information the whole feedback model (§2.5) is
->    built to withhold.
-> 2. **What does it cost?** Nothing, a life, or the win. If it is free, the
->    optimal strategy is to take it, and the puzzle is a 3-word puzzle.
-> 3. **What does the share grid say?** A `3/5` earned with two hints is not
->    the same result as one earned without, and the share text is the growth
->    channel (§1.4). Either it is marked or the grid quietly lies.
->
-> None of this blocks Phase 3 — the button renders and does nothing. It must
-> be settled before Phase 4.
+> Three things remain open and only the first two block Phase 4: how many hints
+> per puzzle, when the button unlocks, and what the share text says.
 
 ### 8.6 Accessibility
 
@@ -1077,7 +1178,7 @@ Listed so they are not accidentally built, and so the reasoning survives:
 | Cross-device sync | Above. |
 | Puzzle archive / play past dailies | Post-launch. Requires a date picker and a rethink of streaks. |
 | Difficulty levels | We do not yet know what "hard" means empirically. Ship one difficulty, measure the distribution, then decide. |
-| ~~Hint system~~ | **Moved in scope.** A hint button ships in the header; the mechanic behind it is undecided (§8.5.1). |
+| ~~Hint system~~ | **Moved in scope.** Membership-only, never positional — the mechanic and its reasoning are in §2.5.3. |
 | Server-rendered / native app | Never, for this product. Static is the whole point. |
 | i18n | ConceptNet is multilingual, so it is *possible* — but each language needs its own vocabulary, tuning, and curation pass. That is a second product. |
 | Redux / Zustand / TanStack Query | The state is 4 slots and an array; one `fetch` runs once per day. |
