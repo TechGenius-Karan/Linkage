@@ -1015,17 +1015,18 @@ Rate-limit by IP hash, cap `attempts` to `0..MAX_ATTEMPTS`, and treat the whole 
 
 *Goal: a fully playable game.*
 
-- [ ] `engine/gameReducer.ts` — `makeGameReducer(puzzle)` (§8.2).
-- [ ] Tap-to-place: select → place → remove → swap.
-- [ ] `SUBMIT` → `correctCount`, append attempt, resolve `won` / `lost` / continue.
-- [ ] `engine/dailyIndex.ts` — DST-safe (§8.3).
-- [ ] `engine/stats.ts` — streak and distribution updates.
-- [ ] Persist on every state change; restore mid-game on load; prune entries older than 7 days.
-- [ ] **Midnight rollover** — recompute the puzzle number on `visibilitychange`/`focus`, prompt rather than yank (§8.7).
-- [ ] `AttemptHistory` and `SubmitBar` with `LivesMeter` — 3 hearts, spent ones greyed but still visible.
-- [ ] Loss state reveals the full chain.
-- [ ] Accessibility pass (§8.6) — `aria-live`, focus management, 44px targets.
-- [ ] **Verify:** Vitest covers the reducer, `dailyIndex` across a DST boundary, and stats streak logic.
+- [x] `engine/gameReducer.ts` — `makeGameReducer(puzzle)` (§8.2).
+- [x] Tap-to-place: select → place → remove → swap.
+- [x] `SUBMIT` → `correctCount`, append attempt, resolve `won` / `lost` / continue.
+- [x] `engine/dailyIndex.ts` — DST-safe (§8.3).
+- [x] `engine/stats.ts` — streak and distribution updates.
+- [x] Persist on every state change; restore mid-game on load; prune entries older than 7 days.
+- [x] **Midnight rollover** — recompute the puzzle number on `visibilitychange`/`focus`, prompt rather than yank (§8.7).
+- [x] `AttemptHistory` and `SubmitBar` with `LivesMeter` — spent hearts drained but still visible. A winning guess costs no heart; a life is lost by being *wrong*.
+- [x] Loss state reveals the full chain.
+- [x] Accessibility pass (§8.6) — `aria-live` on the feedback line, labelled hearts and confirmed tiles, a key for every pointer gesture (§2.4). Focus management on placement is outstanding.
+- [x] **Verify:** 113 Vitest tests — reducer, `dailyIndex` across both DST boundaries, stats streaks, the runtime guard, the codec against Python's fixture, and the pre-paint theme script.
+- [x] **Hints** (§2.5.3) — engine ranks them, the payload carries them, `TAKE_HINT` confirms membership and never places a tile.
 
 ### Phase 5 — Polish & Share
 

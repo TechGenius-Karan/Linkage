@@ -665,7 +665,9 @@ def export(
         random.Random(cfg.seed).shuffle(rest)
         ordered = launch + rest
 
-    fresh = exporters.assign_dates(ordered, first_date, first_id=first_id)
+    fresh = exporters.assign_dates(
+        ordered, first_date, first_id=first_id, hint_count=cfg.hint_count
+    )
     archive = existing + fresh
 
     _echo_header("Corpus quality control")

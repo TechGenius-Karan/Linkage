@@ -17,6 +17,12 @@ export const CHAIN_LENGTH = 4;
 export const MAX_ATTEMPTS = 5;
 
 /** Spec allows 10–12; the generator falls back to 10 when safe distractors run short. */
+/**
+ * Hints available per puzzle (planning.md 2.5.3). Two leaves two unknowns plus
+ * the entire ordering problem; three would very nearly hand the puzzle over.
+ */
+export const MAX_HINTS = 2;
+
 export const BANK_MIN = 10;
 export const BANK_MAX = 12;
 
@@ -46,6 +52,14 @@ export interface Puzzle {
   start: string;
   end: string;
   solution: string[];
+  /**
+   * Answer words a hint may confirm, in the order offered (planning.md 2.5.3).
+   * Precomputed by the engine: `meta` is stripped at export and the browser has
+   * no graph, so the client cannot rank obviousness for itself.
+   *
+   * A hint says a word is in the answer. It never says where.
+   */
+  hints: string[];
   bank: string[];
 }
 
@@ -65,6 +79,14 @@ export interface GameState {
   status: GameStatus;
   /** Tap-to-place selection. Never persisted as part of a finished game. */
   selectedTile: string | null;
+  /**
+   * Answer words the player has had confirmed, in the order taken.
+   *
+   * Tracked from the start even though nothing displays a count yet: the share
+   * text has to decide whether an unaided solve is marked (planning.md 2.5.3),
+   * and reconstructing this later would be impossible.
+   */
+  hintsUsed: string[];
 }
 
 export type Action =
@@ -72,6 +94,7 @@ export type Action =
   | { type: 'PLACE_TILE'; slot: number }
   | { type: 'MOVE_TILE'; from: number; to: number }
   | { type: 'REMOVE_TILE'; slot: number }
+  | { type: 'TAKE_HINT' }
   | { type: 'SUBMIT' }
   | { type: 'RESTORE'; state: GameState };
 

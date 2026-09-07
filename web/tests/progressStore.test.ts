@@ -16,6 +16,7 @@ const state = (puzzleId: number): GameState => ({
   attempts: [],
   status: 'playing',
   selectedTile: null,
+  hintsUsed: [],
 });
 
 /** A minimal in-memory Storage, so tests do not need a browser. */

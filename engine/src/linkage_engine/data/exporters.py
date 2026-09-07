@@ -21,6 +21,7 @@ from typing import Iterable, Sequence
 import networkx as nx
 
 from ..config import Config
+from ..domain.hints import hint_words
 from ..domain.models import Candidate, Puzzle
 from .codec import encode
 
@@ -120,6 +121,8 @@ def read_archive(cfg: Config) -> list[Puzzle]:
                 end=row["end"],
                 solution=tuple(row["solution"]),
                 bank=tuple(row["bank"]),
+                # Absent in any file written before hints existed.
+                hints=tuple(row.get("hints", ())),
             )
         )
     return sorted(puzzles, key=lambda p: p.id)
@@ -139,7 +142,10 @@ def next_slot(existing: Sequence[Puzzle], epoch_date: str) -> tuple[int, str]:
 
 
 def assign_dates(
-    approved: Sequence[Candidate], start_date: str, first_id: int = 1
+    approved: Sequence[Candidate],
+    start_date: str,
+    first_id: int = 1,
+    hint_count: int = 2,
 ) -> list[Puzzle]:
     """Turn approved candidates into dated, numbered puzzles.
 
@@ -158,6 +164,7 @@ def assign_dates(
                 end=candidate.path.end,
                 solution=candidate.path.steps,
                 bank=candidate.bank,
+                hints=hint_words(candidate.path, hint_count),
             )
         )
     return puzzles

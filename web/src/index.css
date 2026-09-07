@@ -153,10 +153,44 @@ a:hover {
     box-shadow: none;
     padding: 11px 13px;
   }
+  /* A hint has confirmed this word is in the answer (planning.md 2.5.3).
+     Independent of selection, and it persists for the rest of the game --
+     so it must not look like the "picked up" state. A left rule reads as a
+     standing annotation rather than a transient one. */
+  .tile-confirmed {
+    /* Deliberately NOT an accent border -- that is what `selected` looks like,
+       and the two mean opposite things: selection is transient and about to be
+       spent, confirmation is permanent and informational. A left rule reads as
+       a standing annotation on the tile rather than a state of it, and keeps
+       the elevation shadow the other tiles have. */
+    box-shadow:
+      inset 4px 0 0 var(--accent),
+      0 1px 2px rgb(31 29 26 / 0.06);
+  }
+  .tile-confirmed:not(.tile-selected) {
+    padding-left: 18px;
+  }
+
   .tile-placed {
     opacity: 0.35;
     box-shadow: none;
     cursor: default;
+  }
+
+  /* Lifted while dragged, and above its siblings so it is never clipped by
+     the next row (docs/design.md 5.1). No transition on transform: the row
+     must track the finger exactly, not lag behind it. */
+  .slot-dragging {
+    z-index: 3;
+    box-shadow: 0 4px 10px rgb(31 29 26 / 0.1);
+    transition: none;
+  }
+
+  /* The row a release would exchange with. Dimmed rather than moved -- a
+     ladder that rearranges itself mid-drag makes the target impossible to
+     aim at. */
+  .slot-target {
+    opacity: 0.6;
   }
 
   /* 40px box, 44px hit area (docs/design.md 7). */

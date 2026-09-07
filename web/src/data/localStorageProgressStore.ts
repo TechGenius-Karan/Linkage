@@ -11,7 +11,10 @@
  */
 
 import type { ProgressStore } from '../engine/ports';
+import { emptyStats } from '../engine/stats';
 import { MAX_ATTEMPTS, type GameState, type Stats } from '../engine/types';
+
+export { emptyStats };
 
 const PREFIX = 'linkage:v1';
 const STATS_KEY = `${PREFIX}:stats`;
@@ -19,17 +22,6 @@ const PROGRESS_PREFIX = `${PREFIX}:progress:`;
 
 /** Progress entries older than this are pruned on load (planning.md 2.8). */
 const PROGRESS_KEEP_DAYS = 7;
-
-export function emptyStats(): Stats {
-  return {
-    gamesPlayed: 0,
-    wins: 0,
-    currentStreak: 0,
-    maxStreak: 0,
-    distribution: Array<number>(MAX_ATTEMPTS).fill(0),
-    lastCompletedId: null,
-  };
-}
 
 /** Shape check for anything read back out of storage — it is not trusted. */
 function isGameState(v: unknown): v is GameState {

@@ -18,6 +18,7 @@ const valid = {
   start: 'whale',
   end: 'wings',
   solution: ['ocean', 'blue', 'sky', 'birds'],
+  hints: ['blue', 'birds'],
   bank: ['sea', 'ocean', 'cloud', 'sky', 'shark', 'blue', 'nest', 'wave', 'birds', 'color', 'feathers'],
 };
 
@@ -84,5 +85,38 @@ describe('validatePuzzle', () => {
 
   it('accepts a payload served under its own date', () => {
     expect(validatePuzzle(valid, '2026-10-01')).toEqual(valid);
+  });
+
+  describe('hints (planning.md 2.5.3)', () => {
+    it('accepts an empty hint list', () => {
+      expect(validatePuzzle(withOverride({ hints: [] })).hints).toEqual([]);
+    });
+
+    it('rejects a hint naming a word that is not an answer', () => {
+      // Worse than no hint: the game would have told the player a decoy
+      // belongs, costing them a life to disprove it.
+      expect(() => validatePuzzle(withOverride({ hints: ['cloud'] }))).toThrow(
+        /name non-answers: cloud/,
+      );
+    });
+
+    it('rejects duplicate hints', () => {
+      // Two identical hints spend the player's second hint on nothing.
+      expect(() => validatePuzzle(withOverride({ hints: ['blue', 'blue'] }))).toThrow(
+        /duplicate hint/,
+      );
+    });
+
+    it('rejects more hints than the game allows', () => {
+      expect(() =>
+        validatePuzzle(withOverride({ hints: ['blue', 'birds', 'sky'] })),
+      ).toThrow(/3 hints, expected at most 2/);
+    });
+
+    it('rejects a missing or malformed hint list', () => {
+      expect(() => validatePuzzle(withOverride({ hints: undefined }))).toThrow(PuzzleInvalid);
+      expect(() => validatePuzzle(withOverride({ hints: 'blue' }))).toThrow(PuzzleInvalid);
+      expect(() => validatePuzzle(withOverride({ hints: [7] }))).toThrow(PuzzleInvalid);
+    });
   });
 });
