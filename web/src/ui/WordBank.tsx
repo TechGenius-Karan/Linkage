@@ -14,11 +14,14 @@ export interface WordBankProps {
   /** Words currently sitting in a slot — ghosted, not removed. */
   placed: readonly string[];
   selected: string | null;
+  /** Words a hint has confirmed are in the answer (planning.md 2.5.3). */
+  confirmed?: readonly string[] | undefined;
   onTileClick?: ((word: string) => void) | undefined;
 }
 
-export function WordBank({ bank, placed, selected, onTileClick }: WordBankProps) {
+export function WordBank({ bank, placed, selected, confirmed, onTileClick }: WordBankProps) {
   const placedSet = new Set(placed);
+  const confirmedSet = new Set(confirmed ?? []);
 
   return (
     <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Word bank">
@@ -28,7 +31,15 @@ export function WordBank({ bank, placed, selected, onTileClick }: WordBankProps)
           : selected === word
             ? 'selected'
             : 'idle';
-        return <Tile key={word} word={word} state={state} onClick={onTileClick} />;
+        return (
+          <Tile
+            key={word}
+            word={word}
+            state={state}
+            confirmed={confirmedSet.has(word)}
+            onClick={onTileClick}
+          />
+        );
       })}
     </div>
   );

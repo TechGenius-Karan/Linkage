@@ -136,6 +136,11 @@ class Config:
     #: ~4 months of dailies.
     word_reuse_window: int = 120
 
+    #: How many answer words a hint may confirm, over the whole puzzle
+    #: (planning.md 2.5.3). Two leaves two unknowns plus the entire ordering
+    #: problem; three would very nearly hand the puzzle over.
+    hint_count: int = 2
+
     launch_week_size: int = 7
 
     # --- Export (planning.md 3.1, 3.3) ---

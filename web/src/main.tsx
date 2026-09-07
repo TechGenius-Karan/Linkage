@@ -10,6 +10,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { HttpPuzzleRepository } from './data/httpPuzzleRepository';
+import { LocalStorageProgressStore } from './data/localStorageProgressStore';
 import './index.css';
 
 const root = document.getElementById('root');
@@ -18,9 +19,10 @@ if (root === null) throw new Error('#root is missing from index.html');
 // BASE_URL is '/Linkage/' in production and '/' in dev — the GitHub Pages
 // subpath lives in vite.config.ts and nowhere else (Risk #7).
 const repo = new HttpPuzzleRepository(import.meta.env.BASE_URL);
+const store = new LocalStorageProgressStore();
 
 createRoot(root).render(
   <StrictMode>
-    <App repo={repo} />
+    <App repo={repo} store={store} />
   </StrictMode>,
 );

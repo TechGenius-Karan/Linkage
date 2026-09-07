@@ -120,6 +120,18 @@ class Puzzle:
     end: str
     solution: tuple[str, ...]
     bank: tuple[str, ...]
+    #: Answer words a hint may confirm, in the order offered (planning.md
+    #: 2.5.3). Computed by `domain.hints` because the client has no graph to
+    #: rank obviousness with. Ships in the payload; never says *where* a word
+    #: goes, only that it is in the answer.
+    hints: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        stray = set(self.hints) - set(self.solution)
+        if stray:
+            raise ValueError(f"hints must be solution words, got {sorted(stray)}")
+        if len(set(self.hints)) != len(self.hints):
+            raise ValueError(f"duplicate hint words: {self.hints}")
 
     def to_payload(self, schema_version: int) -> dict:
         """The decoded JSON a client receives. `meta` is deliberately absent --
@@ -131,6 +143,7 @@ class Puzzle:
             "start": self.start,
             "end": self.end,
             "solution": list(self.solution),
+            "hints": list(self.hints),
             "bank": list(self.bank),
         }
 

@@ -14,6 +14,7 @@ import {
   BANK_MAX,
   BANK_MIN,
   CHAIN_LENGTH,
+  MAX_HINTS,
   PuzzleInvalid,
   PuzzleNotFound,
   SCHEMA_VERSION,
@@ -68,6 +69,16 @@ export function validatePuzzle(value: unknown, expectedDate?: string): Puzzle {
   const missing = solution.filter((w) => !unique.has(w));
   if (missing.length > 0) return bad(`solution words absent from bank: ${missing.join(', ')}`);
 
+  // A hint claims a word is in the answer (planning.md 2.5.3). One that named
+  // a decoy would be worse than no hint at all -- it would cost the player a
+  // life to disprove something the game told them.
+  if (!isWordList(p['hints'])) return bad('hints must be a list of words');
+  const hints = p['hints'];
+  if (hints.length > MAX_HINTS) return bad(`${hints.length} hints, expected at most ${MAX_HINTS}`);
+  if (new Set(hints).size !== hints.length) return bad('duplicate hint words');
+  const notAnswers = hints.filter((w) => !solution.includes(w));
+  if (notAnswers.length > 0) return bad(`hints name non-answers: ${notAnswers.join(', ')}`);
+
   // A drift between id and date would show the wrong puzzle number in every
   // share, which is the one error nobody would notice until it was everywhere.
   const scheduled = dateForPuzzleNumber(p['id']);
@@ -85,6 +96,7 @@ export function validatePuzzle(value: unknown, expectedDate?: string): Puzzle {
     start: p['start'],
     end: p['end'],
     solution,
+    hints,
     bank,
   };
 }

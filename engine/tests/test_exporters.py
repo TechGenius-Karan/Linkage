@@ -88,8 +88,40 @@ def test_shipped_payload_carries_no_meta(cfg):
     decoded = decode(json.loads(paths[0].read_text())["d"], puzzles[0].date)
     assert "meta" not in decoded
     assert set(decoded) == {
-        "schemaVersion", "id", "date", "start", "end", "solution", "bank",
+        "schemaVersion", "id", "date", "start", "end", "solution", "hints", "bank",
     }
+
+
+def test_shipped_payload_carries_hints(cfg):
+    """The client has no graph, so it cannot rank obviousness for itself
+    (planning.md 2.5.3) -- the ordering has to arrive in the payload."""
+    puzzles = exporters.assign_dates([make_candidate()], "2026-10-01", hint_count=2)
+    paths = exporters.write_puzzles(cfg, puzzles)
+    decoded = decode(json.loads(paths[0].read_text())["d"], puzzles[0].date)
+
+    hints = decoded["hints"]
+    assert len(hints) == 2
+    assert len(set(hints)) == 2
+    # A hint confirms membership, so anything it names must actually be an
+    # answer -- a hint that pointed at a decoy would be worse than no hint.
+    assert set(hints) <= set(decoded["solution"])
+
+
+def test_hints_never_include_the_most_obvious_word(cfg):
+    """Spending a hint on the rung the player already had helps nobody."""
+    from linkage_engine.domain.hints import obviousness
+
+    candidate = make_candidate()
+    puzzles = exporters.assign_dates([candidate], "2026-10-01", hint_count=2)
+
+    scores = dict(zip(candidate.path.steps, obviousness(candidate.path), strict=True))
+    giveaway = max(scores, key=lambda w: (scores[w], w))
+    assert giveaway not in puzzles[0].hints
+
+
+def test_hint_count_is_configurable_and_can_be_off(cfg):
+    puzzles = exporters.assign_dates([make_candidate()], "2026-10-01", hint_count=0)
+    assert puzzles[0].hints == ()
 
 
 def test_answers_are_not_readable_in_the_shipped_file(cfg):
