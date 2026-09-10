@@ -1,0 +1,266 @@
+{
+  "137e730efcd479de": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "161238f585a498e3": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "173d38ae51e7771b": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "20d9184884ad518b": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "244dbb73a0cb81a5": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "25b780e41626720f": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "29b3794d242398f3": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "31a9d7000ff4bcb4": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "the connection from roof to tin doesent make sense at all as a roof is usually not made of tin and is made of other materials",
+    "verdict": "reject"
+  },
+  "32768b1884519680": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "35bee23546d58589": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "3ee86018dccfa474": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "4aedbd954678a16f": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "4cdbcf1d559f16d0": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "4ed045947dcb247e": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "5843b21e89263ed6": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "this link is too vage, broad and isnt directly related to it at all. also the freeway to america is also a bad link.",
+    "verdict": "reject"
+  },
+  "66898f743924cd8f": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "6c28ef93a3f9bb7f": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "7ab05b27dd1af608": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "7d313215dd5523d2": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "the entire puzzle feels wrong and the selected link especially is far-fetched",
+    "verdict": "reject"
+  },
+  "7fef8371334c02ca": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "844556ae05d12713": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "86b9c3d6062f81c7": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "8939bad23d5e747e": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "8cacf303019fbcdd": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "914f26dab7c660bf": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "9bbef2cd67db1033": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "a2d749580f23551d": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "c0ae27b17916cdc0": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "nope the connections is too vague",
+    "verdict": "reject"
+  },
+  "c7d7f2e952098628": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "nope the entire puzzle is wrong as the links aren't connected at all",
+    "verdict": "reject"
+  },
+  "c851d90ea4341fc9": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "d5f5aff1bcf46efa": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "dff0dd00e3d5a5c0": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  },
+  "fa7037ed55fd4f53": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-05",
+    "reason": null,
+    "verdict": "accept"
+  }
+}

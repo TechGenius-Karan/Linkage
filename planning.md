@@ -26,6 +26,7 @@
 13. [Risk Register](#13-risk-register)
 14. [Explicitly Out of Scope](#14-explicitly-out-of-scope)
 15. [Problem → Solution Index](#15-problem--solution-index)
+16. [The Admin Tool](#16-the-admin-tool)
 
 - [Appendix A — Tunable Constants](#appendix-a--tunable-constants)
 - [Appendix B — Decision Log](#appendix-b--decision-log)
@@ -1044,7 +1045,44 @@ Rate-limit by IP hash, cap `attempts` to `0..MAX_ATTEMPTS`, and treat the whole 
 - [ ] **Playtest gate before launch (Risk #11):** ~20 people play puzzles #1–#10 and report their `StatsPanel` numbers. Win rate under ~50% → tune puzzle difficulty, **not** the number of lives, and re-review.
 - [ ] **Verify:** Playwright smoke test — load → solve → share modal → clipboard content.
 
-### Phase 6 — Global Stats *(deferred, optional)*
+### Phase 6 — Admin Tool *(§16)*
+
+*Goal: review, refine and schedule puzzles in a browser instead of a terminal.*
+
+Three independently mergeable sub-phases. Ordered so the first one is useful on
+its own — it replaces the review screen the reviewer could never actually see.
+
+**6a — The queue**
+
+- [x] `domain/decisions.py` — the state machine (§16.2). Pure, no I/O.
+- [x] Widen the decision record from `hash -> verdict` to a real object, keeping
+      `read_decisions` tolerant of the old flat shape.
+- [x] `admin/server.py` — stdlib `http.server`, bound to `127.0.0.1`.
+- [x] `linkage admin` CLI command.
+- [x] `web/src/admin/` — queue page: approve, reject with a reason, **mark which
+      link failed**. Plus **undo**, which was not planned and turned out to be
+      the difference between deciding and hesitating.
+- [x] **Build exclusion + a test that `dist/` contains no admin code** (§16.5).
+- [x] **Verify:** driven end to end against the real 900-candidate queue — a
+      verdict made in the browser lands in `decisions.json` in the shape
+      `export` already reads.
+
+**6b — Refine by swapping**
+
+- [ ] Swap a bank word; the engine re-runs the uniqueness proof against the real
+      graph and **refuses the swap if it breaks** (§16.4).
+- [ ] Record swaps on the decision, so an edited puzzle is auditable.
+
+**6c — Pool and schedule**
+
+- [ ] Approved-but-undated pool. Approving records taste; it schedules nothing.
+- [ ] `export` reads `date` from decisions rather than assigning every date
+      itself; the existing auto-assignment becomes a proposal the reviewer can
+      override.
+- [ ] Corpus QC (§7.7.1) surfaced **as a date is chosen**, not only at export.
+- [ ] Unschedule, and unapprove.
+
+### Phase 7 — Global Stats *(deferred, optional)*
 
 - [ ] Cloudflare Worker + D1 per §9.4. Fire-and-forget from the client; failure must be invisible.
 
@@ -1256,6 +1294,143 @@ Completeness check: **every problem named anywhere in this document, and where i
 | One bad puzzle ships; regenerating would reshuffle every date | Per-day files — replace one file, re-verify, push | §12.1 |
 | The archive runs dry after 365 days | `manifest.json` drives a graceful message; regenerate before it expires | §3.3 |
 | Win rate too low to sustain sharing, with no analytics to measure it | Manual playtest, ~20 people on puzzles #1–#10, reporting their own `StatsPanel` | §2.5.1, Risk #11 |
+
+---
+
+## 16. The Admin Tool
+
+*A local tool for reviewing, refining and scheduling puzzles. Not part of the
+game, and never deployed.*
+
+### 16.1 Why it is local, and why that is not a compromise
+
+The obvious model is the one a sibling project uses: an admin page served from
+the public site, gated by a shared access code, backed by a database. Two facts
+make that actively wrong here rather than merely expensive.
+
+**Generation needs the graph, and the graph is 1.2 GB on one laptop.** A
+deployed admin could review a queue but never top it up, which is half a tool.
+Reviewing and generating belong on the same machine because generating has
+nowhere else to run.
+
+**Puzzles ship as files committed to git.** A verdict stored in a remote
+database would need a sync step before it reached a player. A local tool writes
+`engine/reviews/decisions.json` directly, and `git commit` *is* the publish
+step — which is already the workflow (§12).
+
+So the admin binds to `127.0.0.1` and has **no authentication at all**. That is
+not a shortcut. The safest gate is nothing exposed; an access code exists in
+the sibling project because its admin ships to a public URL, and ours must not.
+
+> **Reviewing from a phone:** `--host` exposes it on the local network, the
+> same way the dev server already is. Anyone on that network can then open it.
+> There is nothing behind it but puzzle answers, and it is a home network — but
+> it is a deliberate choice each time, not a default.
+
+### 16.2 The state machine
+
+```
+  candidate ──approve──► approved (undated) ──schedule──► scheduled (date + id)
+      │                       ▲     │                            │
+      └── reject ─────────────┘     └── unapprove                └── unschedule
+          (reason, badLink)
+```
+
+**Approve records taste. Scheduling is a separate act.** Round 1's reviewer was
+explicit about this — an approval must not imply a shipping date — and §7.7.3
+lists the coupling as an open defect. The undated pool is where it gets fixed:
+`approved` carries `date: null` until somebody chooses one.
+
+`decisions.json` is keyed by content hash, so re-running `generate` never
+discards a judgement already made (§7.7). The record widens from a bare verdict
+string to:
+
+```jsonc
+{ "66898f743924cd8f": {
+    "verdict":   "approve",       // or "reject"
+    "reason":    null,            // free text, on reject
+    "badLink":   null,            // WHICH rung failed, 0..4
+    "bankEdits": [],              // swaps made in review, for auditing
+    "date":      null,            // scheduling, deliberately separate
+    "decidedAt": "2026-09-10" } }
+```
+
+`read_decisions` stays tolerant of the old `hash -> verdict` shape, so a
+`decisions.json` written by the terminal TUI still loads.
+
+**`badLink` is the point of the whole exercise.** Round 1's single most useful
+finding was that *one* bad link ruined otherwise-good chains, and §7.7.3 records
+that letting a reviewer say which link failed is worth more than any heuristic
+guessed from here. A free-text reason cannot be aggregated; a rung index can.
+
+### 16.3 Shape
+
+```
+engine/src/linkage_engine/
+  admin/server.py        TIER 1  stdlib http.server on 127.0.0.1
+  admin/handlers.py      TIER 1  parse -> domain call -> JSON
+  domain/decisions.py    TIER 2  the state machine. Pure, no I/O, fully tested.
+
+web/src/admin/           lazy-loaded; dropped from the production build
+  AdminApp · Queue · Pool · Schedule · adminClient.ts
+```
+
+`http.server` from the standard library, not Flask or FastAPI. One reviewer, on
+one machine, over localhost — a framework would be a dependency earning nothing.
+
+Seven endpoints: `queue`, `approve`, `reject`, `swap`, `pool`, `schedule`,
+`unschedule`.
+
+> **No health dashboard.** An earlier draft had an eighth endpoint reporting
+> archive coverage and word-reuse pressure. Cut: the number that actually
+> matters is whether *this* puzzle on *this* date breaks a rule, and that
+> belongs beside the date picker (§16.6), not on a separate screen nobody opens.
+
+**`linkage review` — the terminal TUI — is kept, not replaced.** It works, it
+needs no browser, and it is the fallback when the server will not start.
+
+### 16.4 Refine means swapping a word, and the engine gets a veto
+
+A sibling project's Refine hands the reviewer's notes to a model that rewrites
+the puzzle. Nothing like that applies here: this generator is deterministic
+graph search, not a language model, and there is nothing to negotiate with.
+
+What transfers is the **shape** of the interaction, and one hard-won rule from
+that project's own source: *refine and reject must be different buttons.* They
+had merged them once, and asking for a fix could silently discard the puzzle.
+
+So: **swap one bank word for another, and the engine re-runs the uniqueness
+proof before accepting it.** If the swap would make a second solution possible,
+it is refused with the reason — the reviewer cannot break the one property the
+whole game rests on, even by hand. A rejected swap leaves the puzzle untouched
+and in the queue.
+
+This aims directly at round 1's other finding: the banks were uniformly too
+hard, because 95% of every bank was a decoy wired to one side of a solution
+slot (§7.7.3). `DISTRACTOR_MIX` addresses that in generation; swapping
+addresses the ones that still slip through.
+
+### 16.5 The admin must never ship
+
+There is no server-side gate, so a deployed admin is an open door onto the
+answer key. It is excluded from the production build by a flag, and
+**a test asserts the built `dist/` contains no admin code**.
+
+The test matters more than the flag. A build-time exclusion that silently stops
+working produces a deploy that looks completely normal, and nothing about the
+game would appear wrong.
+
+### 16.6 Corpus QC belongs beside the date picker
+
+§7.7.1 checks word reuse, duplicate endpoint pairs and repeated chains at
+export, and **fails loudly**. That is correct and, on its own, useless: by the
+time export runs, thirty decisions have already been made, and "the archive is
+bad" is not an instruction anybody can act on.
+
+The same checks run when a date is chosen, against the archive plus everything
+already scheduled — so the reviewer sees *"`river` would appear 6 times in 120
+puzzles"* while they can still pick a different day. Export keeps its hard gate;
+this is the warning that makes the gate rarely fire.
 
 ---
 

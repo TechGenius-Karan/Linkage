@@ -9,4 +9,12 @@ import tailwind from '@tailwindcss/vite';
 export default defineConfig({
   base: '/Linkage/',
   plugins: [react(), tailwind()],
+  server: {
+    // The admin's Python server (`linkage admin`) lives on another port.
+    // Proxying keeps the browser same-origin, so CORS never enters the
+    // picture and the client needs no base URL (planning.md 16.3).
+    proxy: {
+      '/api/admin': { target: 'http://127.0.0.1:8787', changeOrigin: false },
+    },
+  },
 });
