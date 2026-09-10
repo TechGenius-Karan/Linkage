@@ -308,6 +308,35 @@ def test_reading_missing_candidates_gives_an_actionable_error(cfg):
 
 
 def test_decisions_roundtrip_and_default_to_empty(cfg):
+    from linkage_engine.domain import decisions as dec
+
     assert exporters.read_decisions(cfg.decisions_path) == {}
-    exporters.write_decisions(cfg.decisions_path, {"abc": "accept"})
-    assert exporters.read_decisions(cfg.decisions_path) == {"abc": "accept"}
+
+    written = {"abc": dec.approve("2026-09-10"), "def": dec.reject("2026-09-10", reason="mush")}
+    exporters.write_decisions(cfg.decisions_path, written)
+    assert exporters.read_decisions(cfg.decisions_path) == written
+
+
+def test_decisions_still_read_the_old_flat_file(cfg):
+    """A decisions.json written before the admin existed must still load
+    (planning.md 16.2) -- otherwise the tool loses a reviewer's work."""
+    from linkage_engine.domain import decisions as dec
+
+    cfg.decisions_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg.decisions_path.write_text(json.dumps({"abc": "accept", "def": "reject"}), encoding="utf-8")
+
+    loaded = exporters.read_decisions(cfg.decisions_path)
+    assert loaded["abc"].verdict == dec.ACCEPT
+    assert loaded["def"].verdict == dec.REJECT
+    assert loaded["abc"].date is None
+
+
+def test_decisions_are_written_sorted(cfg):
+    """Re-writing an unchanged set must produce no diff."""
+    from linkage_engine.domain import decisions as dec
+
+    exporters.write_decisions(
+        cfg.decisions_path,
+        {"zzz": dec.approve("2026-09-10"), "aaa": dec.approve("2026-09-10")},
+    )
+    assert list(json.loads(cfg.decisions_path.read_text(encoding="utf-8"))) == ["aaa", "zzz"]

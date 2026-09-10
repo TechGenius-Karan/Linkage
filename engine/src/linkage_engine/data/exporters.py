@@ -21,6 +21,7 @@ from typing import Iterable, Sequence
 import networkx as nx
 
 from ..config import Config
+from ..domain.decisions import ACCEPT, Decision, from_json, to_json
 from ..domain.hints import hint_words
 from ..domain.models import Candidate, Puzzle
 from .codec import encode
@@ -76,19 +77,25 @@ def read_candidates(path: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def read_decisions(path: Path) -> dict[str, str]:
-    """Review verdicts keyed by content hash.
+def read_decisions(path: Path) -> dict[str, Decision]:
+    """Review verdicts keyed by content hash (planning.md 16.2).
 
-    Kept separate from candidates.json so re-running `generate` never
-    discards a judgement a person already made (planning.md 7.7).
+    Kept separate from candidates.json so re-running `generate` never discards
+    a judgement a person already made (planning.md 7.7).
+
+    Each entry parses through `domain.decisions.from_json`, which still accepts
+    the original flat `hash -> "accept"` shape written by the terminal TUI. A
+    reviewer's existing file must not stop loading because the tool grew.
     """
     if not path.exists():
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {hash_: from_json(entry) for hash_, entry in raw.items()}
 
 
-def write_decisions(path: Path, decisions: dict[str, str]) -> None:
-    _write_json(path, decisions)
+def write_decisions(path: Path, decisions: dict[str, Decision]) -> None:
+    """Sorted by hash so re-writing an unchanged set produces no diff."""
+    _write_json(path, {h: to_json(d) for h, d in sorted(decisions.items())})
 
 
 # --------------------------------------------------------------------------

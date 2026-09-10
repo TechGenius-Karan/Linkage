@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import random
 import statistics
+from datetime import date
 from pathlib import Path
 from typing import Annotated
 
@@ -21,7 +22,7 @@ from .data import codec, conceptnet, exporters, graph_store
 from .data.pos import make_pos_checker
 from .data.stemming import PorterStemmerAdapter
 from .data.vocabulary import build_vocabulary
-from .domain import corpus, graph_builder, hubs
+from .domain import corpus, decisions as decisions_mod, graph_builder, hubs
 from .domain.distractors import DistractorSelector
 from .domain.generator import CandidateGenerator
 from .domain.models import Candidate, Path as ChainPath
@@ -416,7 +417,7 @@ def generate(
     graph = _load_graph(cfg)
 
     decisions = exporters.read_decisions(cfg.decisions_path)
-    approved_now = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
+    approved_now = sum(1 for v in decisions.values() if v.verdict == review_ui.ACCEPT)
 
     if until_approved is not None:
         shortfall = until_approved - approved_now
@@ -508,7 +509,7 @@ def review(
 
     queue = [r for r in rows if redo or r["hash"] not in decisions]
     if not queue:
-        approved = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
+        approved = sum(1 for v in decisions.values() if v.verdict == review_ui.ACCEPT)
         typer.secho(
             f"Nothing left to review. {approved} approved of {len(rows)} candidates.",
             fg=typer.colors.GREEN,
@@ -521,21 +522,29 @@ def review(
         for index, row in enumerate(queue, start=1):
             if limit is not None and decided >= limit:
                 break
-            approved = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
+            approved = sum(1 for v in decisions.values() if v.verdict == review_ui.ACCEPT)
             review_ui.render(row, index, len(queue), approved)
             verdict = review_ui.prompt()
             if verdict == "quit":
                 break
             if verdict != review_ui.SKIP:
-                decisions[row["hash"]] = verdict
+                # The TUI has no reason prompt, and a rejection needs one
+                # (planning.md 16.2) -- so it records that the reason came from
+                # a surface that cannot collect it, rather than inventing one.
+                today = date.today().isoformat()
+                decisions[row["hash"]] = (
+                    decisions_mod.approve(today)
+                    if verdict == review_ui.ACCEPT
+                    else decisions_mod.reject(today, reason="Rejected in the terminal review.")
+                )
                 decided += 1
     except KeyboardInterrupt:
         typer.echo("\n  interrupted")
     finally:
         exporters.write_decisions(cfg.decisions_path, decisions)
 
-    approved = sum(1 for v in decisions.values() if v == review_ui.ACCEPT)
-    rejected = sum(1 for v in decisions.values() if v == review_ui.REJECT)
+    approved = sum(1 for v in decisions.values() if v.verdict == review_ui.ACCEPT)
+    rejected = sum(1 for v in decisions.values() if v.verdict == review_ui.REJECT)
     _echo_header("Session")
     typer.echo(f"  decided this run  {decided:>6,}")
     typer.echo(f"  approved total    {approved:>6,}  / target {cfg.target_approved}")
@@ -612,7 +621,7 @@ def export(
     approved = [
         _candidate_from_dict(rows[h])
         for h, verdict in sorted(decisions.items())
-        if verdict == review_ui.ACCEPT and h in rows
+        if verdict.verdict == review_ui.ACCEPT and h in rows
     ]
     if not approved:
         typer.secho("Nothing approved yet. Run `linkage review`.", fg=typer.colors.RED)
@@ -704,6 +713,54 @@ def export(
             fg=typer.colors.GREEN,
         )
     typer.secho("\nNext:  pytest", fg=typer.colors.GREEN)
+
+
+@app.command()
+def admin(
+    port: Annotated[int, typer.Option("--port", help="Port to serve on.")] = 8787,
+    host: Annotated[
+        str,
+        typer.Option(
+            "--host",
+            help="Bind address. 0.0.0.0 exposes the tool to your local network.",
+        ),
+    ] = "127.0.0.1",
+) -> None:
+    """Serve the local review tool (planning.md 16).
+
+    There is no authentication, by design: it binds to localhost and the safest
+    gate is nothing exposed. `--host 0.0.0.0` opens it to the network so a phone
+    can reach it, and that is a deliberate choice each time.
+    """
+    from .admin.server import make_server
+
+    cfg = Config()
+    if not cfg.candidates_path.exists():
+        typer.secho(
+            f"No candidates at {cfg.candidates_path}. Run `linkage generate` first.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+
+    server = make_server(cfg, host=host, port=port)
+    _echo_header("Admin")
+    typer.echo(f"  api        http://{host}:{port}/api/admin/queue")
+    typer.echo(f"  reads      {cfg.candidates_path.relative_to(cfg.repo_root)}")
+    typer.echo(f"  writes     {cfg.decisions_path.relative_to(cfg.repo_root)}")
+    if host not in ("127.0.0.1", "localhost"):
+        typer.secho(
+            "  WARNING    reachable from your local network, with no password.",
+            fg=typer.colors.YELLOW,
+        )
+    typer.echo("")
+    typer.echo("  UI: run `npm run dev` in web/ and open /admin. Ctrl-C to stop.")
+    typer.echo("")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        typer.echo("  stopped")
+    finally:
+        server.server_close()
 
 
 @app.command("emit-codec-fixture")
