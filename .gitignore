@@ -13,6 +13,7 @@ venv/
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
 
 # --- Large, regenerable data (planning.md 12) ---
 # The ConceptNet dump is ~1.2 GB and the graph is rebuildable from it.

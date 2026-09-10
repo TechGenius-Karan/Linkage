@@ -23,6 +23,14 @@
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
+  "20d9184884ad518b": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": null,
+    "verdict": "accept"
+  },
   "244dbb73a0cb81a5": {
     "badLink": null,
     "bankEdits": [],
@@ -47,6 +55,14 @@
     "reason": null,
     "verdict": "accept"
   },
+  "31a9d7000ff4bcb4": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "the connection from roof to tin doesent make sense at all as a roof is usually not made of tin and is made of other materials",
+    "verdict": "reject"
+  },
   "32768b1884519680": {
     "badLink": null,
     "bankEdits": [],
@@ -55,6 +71,14 @@
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
+  "35bee23546d58589": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": null,
+    "verdict": "accept"
+  },
   "3ee86018dccfa474": {
     "badLink": null,
     "bankEdits": [],
@@ -62,6 +86,14 @@
     "decidedAt": "2026-09-05",
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
+  },
+  "4aedbd954678a16f": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": null,
+    "verdict": "accept"
   },
   "4cdbcf1d559f16d0": {
     "badLink": null,
@@ -77,6 +109,14 @@
     "date": null,
     "decidedAt": "2026-09-05",
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "5843b21e89263ed6": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "this link is too vage, broad and isnt directly related to it at all. also the freeway to america is also a bad link.",
     "verdict": "reject"
   },
   "66898f743924cd8f": {
@@ -102,6 +142,14 @@
     "decidedAt": "2026-09-05",
     "reason": null,
     "verdict": "accept"
+  },
+  "7d313215dd5523d2": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "the entire puzzle feels wrong and the selected link especially is far-fetched",
+    "verdict": "reject"
   },
   "7fef8371334c02ca": {
     "badLink": null,
@@ -165,6 +213,22 @@
     "date": null,
     "decidedAt": "2026-09-05",
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "c0ae27b17916cdc0": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "nope the connections is too vague",
+    "verdict": "reject"
+  },
+  "c7d7f2e952098628": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-10",
+    "reason": "nope the entire puzzle is wrong as the links aren't connected at all",
     "verdict": "reject"
   },
   "c851d90ea4341fc9": {
