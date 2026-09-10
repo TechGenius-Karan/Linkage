@@ -6,6 +6,7 @@ the domain tier; every byte it reads or writes went through the data tier.
 
 from __future__ import annotations
 
+import json
 import random
 import statistics
 from datetime import date
@@ -761,6 +762,91 @@ def admin(
         typer.echo("  stopped")
     finally:
         server.server_close()
+
+
+@app.command("import-verdicts")
+def import_verdicts(
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Report what would change, write nothing.")
+    ] = False,
+) -> None:
+    """Fold `engine/reviews/*.json` into `decisions.json` (planning.md 16.2).
+
+    Round 1 was judged before the admin existed and its verdicts were kept as
+    data only, so those 25 candidates would otherwise come round the queue a
+    second time.
+
+    **Approvals import undated.** A verdict records taste; scheduling is a
+    separate act, and importing a date here would recreate exactly the coupling
+    7.7.3 exists to remove.
+
+    Idempotent: an existing decision is never overwritten, so re-running this
+    cannot clobber a judgement made since.
+    """
+    cfg = Config()
+    review_dir = cfg.engine_dir / "reviews"
+    files = sorted(review_dir.glob("*.json")) if review_dir.exists() else []
+    if not files:
+        typer.secho(f"No review files in {review_dir}", fg=typer.colors.YELLOW)
+        raise typer.Exit(0)
+
+    decisions = exporters.read_decisions(cfg.decisions_path)
+    known = {r["hash"] for r in exporters.read_candidates(cfg.candidates_path)}
+
+    added = skipped = orphaned = 0
+    _echo_header("Importing")
+    for path in files:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        reviewed = payload.get("reviewed", "")
+        rows = payload.get("verdicts", [])
+        file_added = 0
+
+        for row in rows:
+            digest = row["hash"]
+            if digest in decisions:
+                skipped += 1
+                continue
+            if digest not in known:
+                # The candidate pool was regenerated since; keeping the verdict
+                # would be harmless but silently useless, so say so instead.
+                orphaned += 1
+                continue
+
+            if row["verdict"] in ("approve", "accept"):
+                decisions[digest] = decisions_mod.approve(reviewed)
+            else:
+                # Round 1 recorded no per-verdict reason, and reject() requires
+                # one. A placeholder that names the gap is honest; inventing a
+                # reason would poison the data this field exists to collect.
+                decisions[digest] = decisions_mod.reject(
+                    reviewed,
+                    reason=f"Reason not recorded — {path.stem} predates structured reasons.",
+                )
+            added += 1
+            file_added += 1
+
+        typer.echo(f"  {path.name:<20} {len(rows):>3} verdicts, {file_added:>3} imported")
+
+    if dry_run:
+        typer.echo("")
+        typer.secho(
+            f"  DRY RUN - nothing written. Would import {added}.",
+            fg=typer.colors.YELLOW,
+        )
+        raise typer.Exit(0)
+
+    if added:
+        exporters.write_decisions(cfg.decisions_path, decisions)
+
+    split = decisions_mod.split(decisions)
+    _echo_header("Result")
+    typer.echo(f"  imported   {added:>4}")
+    typer.echo(f"  skipped    {skipped:>4}  (already decided)")
+    if orphaned:
+        typer.secho(f"  orphaned   {orphaned:>4}  (hash not in candidates.json)", fg=typer.colors.YELLOW)
+    typer.echo(f"  pool       {len(split.approved_pool):>4}  approved, undated")
+    typer.echo(f"  rejected   {len(split.rejected):>4}")
+    typer.echo(f"  scheduled  {len(split.scheduled):>4}")
 
 
 @app.command("emit-codec-fixture")
