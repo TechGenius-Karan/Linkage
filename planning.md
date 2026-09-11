@@ -196,7 +196,56 @@ This is the defining mechanic, and the hardest of the three candidate models.
 | Inherently colourblind-safe — the signal is a *number*, stated in text. | Colour is decoration, never the sole channel. Free accessibility win. |
 | A player can legitimately score 3/4 (three solution words placed right, a distractor in the fourth slot). | Not a bug. Noted so nobody "fixes" it later. |
 
-### 2.5.1 Lives, Not Attempts *(shape decided; count open)*
+### 2.5.1 The Timer, Not Lives *(decided 2026-09-11 — supersedes the verdict below)*
+
+**No lives, no forced loss state, no give-up path.** A puzzle stays `playing`
+until it is won. Guesses are free — nothing caps them, nothing ends the game
+on a wrong one — and the game is scored on elapsed time instead. Taking a
+hint adds a fixed penalty to the clock (§2.5.3) rather than costing an
+attempt. Comparison is **local-only**: personal best and a time-bucketed
+distribution, no backend (§9 is unaffected — nothing here needs it).
+
+This reopens and reverses §2.5.2 below, which had rejected exactly this
+shape. Reversing a recorded decision without dropping the reasoning that
+produced it would leave a future reader re-deriving both sides from scratch,
+so §2.5.2 is kept as-is beneath this section rather than deleted. What
+actually changed:
+
+- **The decisive objection was free guesses turning count-only feedback into
+  a mechanical-permutation exploit.** The counter-argument: under a
+  time-scored model a guess is never truly free — it costs the real seconds
+  it takes to make, and a player who permutes instead of reasoning pays for
+  it in the number that ends up shared. The bet is that the intended
+  audience (a daily puzzle played half-distracted, on a commute) will not
+  bother grinding when reasoning it out is faster — the same self-regulation
+  that keeps people from guessing randomly at Wordle despite nothing
+  stopping them. **This is a bet, not a measurement**, and unlike
+  `MAX_ATTEMPTS` before it, the Phase 5 playtest gate cannot fully settle it
+  by itself — there is no "old build" left to compare a grinder's behaviour
+  against once lives are gone. Flagged here rather than treated as resolved.
+- **The pacing objection was not addressed and still holds.** §2.5.2's point
+  that a visible clock fights the "aha" (insight problems are measurably
+  hindered by time pressure) is accepted as a real cost, taken on purpose —
+  the timer is visible throughout play, not only revealed on the win screen.
+- **The interrupted-play objection is handled, not waived.** The timer
+  pauses automatically on `visibilitychange` (tab hidden / app backgrounded)
+  and resumes on return, so a commute interruption does not inflate the
+  score the way an always-running stopwatch would have.
+- **No give-up path was a deliberate choice, separate from the above.** A
+  stuck player's puzzle simply stays open; nothing is recorded until it is
+  won (`engine/stats.ts` only folds in a `'won'` result).
+
+`HINT_TIME_PENALTY_MS` — **provisional, placeholder 20s**, same spirit as the
+old `MAX_ATTEMPTS` — is added to the clock the instant a hint is taken, which
+is what makes the timer visibly jump rather than just read higher on the next
+tick. Unmeasured pending the Phase 5 playtest gate.
+
+### 2.5.2 Original decision — Lives, rejecting a timer *(superseded by §2.5.1; kept for the reasoning)*
+
+*Everything below this line is the decision as it stood before §2.5.1. Left
+in place rather than rewritten, per this document's own rule for reversed
+decisions: the argument should survive intact, not be re-litigated from
+scratch by whoever revisits it next.*
 
 `MAX_ATTEMPTS` is presented to the player as **lives** (`♥ ♥ ♥ ♥ ♥`), never as an attempt counter.
 
@@ -209,7 +258,7 @@ The reframe is the point. "3 of 6 attempts used" reads as a budget to spend; **h
 **The tension to hold while deciding:**
 
 - **Too few and the win rate collapses.** Wordle's ~95% win rate is a large part of why people share it — nobody posts a failure. Count-only feedback plus a short life count is a genuinely hard combination, and below roughly 50% the share loop dies quietly.
-- **Too many and the feedback becomes an exploit.** With `P(11, 4) = 7,920` arrangements and ~2.3 bits of feedback per guess, a small budget cannot be deduced through — which is precisely what pushes the weight back onto semantic reasoning. Given enough guesses, mechanical permuting becomes viable, which §2.5.2 identifies as the thing that inverts what the game rewards.
+- **Too many and the feedback becomes an exploit.** With `P(11, 4) = 7,920` arrangements and ~2.3 bits of feedback per guess, a small budget cannot be deduced through — which is precisely what pushes the weight back onto semantic reasoning. Given enough guesses, mechanical permuting becomes viable, which the rejected-timer reasoning below identifies as the thing that inverts what the game rewards.
 
 Five sits between those. That is why dev builds use it, and it is a starting position rather than a verdict.
 
@@ -217,13 +266,11 @@ Five sits between those. That is why dev builds use it, and it is a starting pos
 
 **Loss condition:** all lives spent → `lost`. The full solution chain is then revealed.
 
-### 2.5.2 Open question — time instead of lives?
+**Proposal that was rejected: drop the fail state entirely and score on *time to solve*, comparing and recording players' times.**
 
-**Proposal:** drop the fail state entirely and score on *time to solve*, comparing and recording players' times.
+**Verdict at the time: not as a replacement for lives. Worth having as a secondary stat.** The reasoning:
 
-**Verdict: not as a replacement for lives. Worth having as a secondary stat.** The reasoning, so the decision can be revisited with the argument intact rather than re-litigated from scratch:
-
-1. **Without scarcity, the feedback becomes an exploit.** Count-only feedback works *because* guesses are scarce. Make them free and the optimal strategy is mechanical probing — permute tiles, read the count, converge. The game would then reward *clicking speed*, not insight. This is the decisive objection: it does not merely change the challenge, it inverts what the game rewards.
+1. **Without scarcity, the feedback becomes an exploit.** Count-only feedback works *because* guesses are scarce. Make them free and the optimal strategy is mechanical probing — permute tiles, read the count, converge. The game would then reward *clicking speed*, not insight. This is the decisive objection: it does not merely change the challenge, it inverts what the game rewards. **(§2.5.1 revisits this specific point — see above.)**
 
 2. **A timer fights the core design.** §1.3's north star is the "aha" — and an aha is a *pause*. You stare, turn the idea over, and it clicks. Insight problems are measurably hindered by time pressure; Linkage is an insight problem by construction. A clock converts a contemplative game into a reflex game.
 
@@ -233,9 +280,7 @@ Five sits between those. That is why dev builds use it, and it is a starting pos
 
 5. **It punishes how dailies are actually played** — on a commute, in a queue, half-distracted, phone down mid-puzzle.
 
-**What does work:** record elapsed time as a *stat*, shown on the win screen and in `StatsPanel`, with lives still deciding win/loss. Cheap, local, no backend, and it gives the competitive hook without letting speed override thinking. If a leaderboard is ever wanted, time-as-tiebreaker among equal-attempt solves is the natural shape.
-
-**Deferred to Phase 4.** Nothing here blocks puzzle generation.
+**What was recommended instead:** record elapsed time as a *stat*, shown on the win screen and in `StatsPanel`, with lives still deciding win/loss. If a leaderboard is ever wanted, time-as-tiebreaker among equal-attempt solves is the natural shape.
 
 ### 2.5.3 Hints — Membership, Never Position *(decided)*
 
@@ -262,13 +307,17 @@ this document assumes:
 | Confirm one word is in the answer | 2,880 | 11.5 | 2.8× |
 | Reveal one word in position | 720 | **9.5** | 11× |
 
-Across five lives, count-only feedback supplies roughly 9.2 bits. Solving from
-scratch needs ~12.9, so **feedback alone cannot get you there** and the
-remaining ~3.7 bits must come from semantic reasoning. That gap *is* the game.
-A single reveal drops the requirement to ~9.5 bits — near enough to the
-mechanical budget that permuting tiles without thinking becomes viable. That is
-the same failure §2.5.2 rejected the timer over: it does not make the game
-easier, it changes what the game rewards.
+There is no hard cap on guesses any more (§2.5.1), but the arithmetic still
+matters for a patient solver — call it five or six guesses before someone
+gives up and reasons instead, the same order of magnitude the old life count
+used to enforce. That many guesses of count-only feedback supplies roughly
+9.2 bits. Solving from scratch needs ~12.9, so **feedback alone cannot get
+you there** and the remaining ~3.7 bits must come from semantic reasoning.
+That gap *is* the game. A single reveal drops the requirement to ~9.5 bits —
+near enough to what a patient grinder already has available that permuting
+tiles without thinking becomes viable. That is the same failure §2.5.1's
+free-guesses bet is watching for: it does not make the game easier, it
+changes what the game rewards.
 
 > **The Crossclimb comparison does not transfer**, though it looks like it
 > should. In Crossclimb every row carries its own clue, so revealing a row
@@ -334,15 +383,13 @@ development fixture all move with it.
       words still leaves two unknowns plus the entire ordering problem, where a
       third would nearly hand the puzzle over. Decides how many words `hints`
       carries.
-- [ ] **When the button unlocks.** Proposal: after the second failed attempt, so
-      a player's first encounter with a puzzle is always unaided.
-- [ ] **What the share text says.** Deliberately deferred (§2.7). The trap is
-      that doing nothing is itself a decision: an unmarked grid means a player
-      who used two hints posts the same `3/5` as one who used none, and once a
-      group works that out the number stops meaning anything. The leading
-      option is a binary clean-solve badge rather than a hint count — bragging
-      is binary, and one number plus one earned mark survives a WhatsApp group
-      better than two numbers to compare.
+- [x] **When the button unlocks.** ~~Proposal: after the second failed
+      attempt~~ — moot once lives were removed (§2.5.1): the hint button is
+      available from the start, and instead costs time
+      (`HINT_TIME_PENALTY_MS`) rather than being gated behind failure.
+- [x] **What the share text says.** Resolved by §2.5.1/§2.7: puzzle number,
+      elapsed time, hint count. See §2.7 for why the emoji grid this item
+      originally pointed at was dropped rather than adapted.
 - [ ] **Whether `hintsUsed` reaches `Stats`.** The reducer will track it on
       `GameState` regardless, since the share decision above needs it later and
       recording it costs nothing now.
@@ -354,29 +401,48 @@ development fixture all move with it.
 - Computed with **date-only arithmetic** (`new Date(y, m, d)` for both endpoints), never raw millisecond subtraction — otherwise DST transitions shift the puzzle by one for half the year. See §8.3.
 - Timezone-hopping to reach tomorrow's puzzle early is accepted, exactly as Wordle does.
 
-### 2.7 Sharing
+### 2.7 Sharing *(rewritten with §2.5.1 — the emoji grid below no longer fits)*
 
-Wordle-shaped and spoiler-free. One row per attempt; the number of filled squares equals `correctCount`.
+The original design here (kept as the blockquote below) was a Wordle-shaped
+row-per-attempt emoji grid, sized to `MAX_ATTEMPTS`. Two things §2.5.1 removed
+made it unbuildable as specified: there is no attempt cap to size the grid to
+— a grinding player could rack up dozens of rows — and there is no `X/N` loss
+line to head it, since there is no loss. Rebuilding an unbounded, still
+spoiler-free grid was judged not worth it for a stat nobody had asked to see
+in that shape; a text line does the same job.
+
+**What ships instead:** one line — puzzle number, elapsed time, hint count —
+built by the pure `buildShareText(state)` (`engine/shareText.ts`) and copied
+from the UI. Still spoiler-free (states a number and a duration, nothing
+positional), still local-only, no backend.
 
 ```
-Linkage #142  3/5
-
-[Y][Y][ ][ ]        (rendered with emoji: yellow / white / green)
-[Y][Y][Y][ ]
-[G][G][G][G]
-
-https://techgenius-karan.github.io/Linkage/
+Linkage #142 — solved in 1:47 (1 hint used)
 ```
 
-- 🟨 — one correct placement in that attempt.
-- ⬜ — one incorrect placement.
-- 🟩 — the winning row.
-- A loss renders `X/N` with every row shown.
-- At most `MAX_ATTEMPTS` rows — at 5 the grid still fits any post without wrapping.
+> Original spec, superseded, kept for the shape of the reasoning:
+>
+> Wordle-shaped and spoiler-free. One row per attempt; the number of filled squares equals `correctCount`.
+>
+> ```
+> Linkage #142  3/5
+>
+> [Y][Y][ ][ ]        (rendered with emoji: yellow / white / green)
+> [Y][Y][Y][ ]
+> [G][G][G][G]
+>
+> https://techgenius-karan.github.io/Linkage/
+> ```
+>
+> - 🟨 — one correct placement in that attempt.
+> - ⬜ — one incorrect placement.
+> - 🟩 — the winning row.
+> - A loss renders `X/N` with every row shown.
+> - At most `MAX_ATTEMPTS` rows — at 5 the grid still fits any post without wrapping.
+>
+> Because squares are **left-packed rather than positional**, the grid leaks *zero* information about which slots were right. A friend seeing your grid learns your struggle, not the answer. This falls out naturally from the count-only feedback model — the two decisions reinforce each other.
 
-Because squares are **left-packed rather than positional**, the grid leaks *zero* information about which slots were right. A friend seeing your grid learns your struggle, not the answer. This falls out naturally from the count-only feedback model — the two decisions reinforce each other.
-
-Copy via `navigator.clipboard.writeText`, with a hidden `<textarea>` + `document.execCommand('copy')` fallback for older iOS Safari.
+Copy via `navigator.clipboard.writeText`, with a `.catch()` no-op if permission is denied — the game itself has already succeeded, a failed clipboard write is not worth surfacing as an error.
 
 ### 2.8 Persistence
 
@@ -384,8 +450,8 @@ Copy via `navigator.clipboard.writeText`, with a hidden `<textarea>` + `document
 
 | Key | Contents |
 |---|---|
-| `linkage:v1:progress:<id>` | In-flight board state for puzzle `<id>` — survives a mid-game refresh. |
-| `linkage:v1:stats` | `gamesPlayed`, `wins`, `currentStreak`, `maxStreak`, `distribution[1..MAX_ATTEMPTS]`, `lastCompletedId` |
+| `linkage:v1:progress:<id>` | In-flight board state for puzzle `<id>` — survives a mid-game refresh, including the running timer (`startedAt`, `pausedAt`, `totalPausedMs`, `hintPenaltyMs`, `finishedAt`). |
+| `linkage:v1:stats` | `gamesPlayed`, `currentStreak`, `maxStreak`, `bestTimeMs`, `totalTimeMs`, `distribution` (time-bucketed, `TIME_BUCKETS_MS` in `engine/stats.ts`), `lastCompletedId`. No `wins`/win-rate field — every completed game is a win now that there is no loss state (§2.5.1). |
 
 - Streak breaks when `puzzleId !== lastCompletedId + 1`.
 - Progress entries older than 7 days are pruned on load.
@@ -721,7 +787,10 @@ unchanged, so every §7.x reference in this document resolves there.
 ### 8.2 The Reducer — Tier 2, Framework-Free
 
 ```ts
-type GameStatus = 'playing' | 'won' | 'lost';
+// Simplified for readability — the real GameState (web/src/engine/types.ts)
+// also carries startedAt/pausedAt/totalPausedMs/hintPenaltyMs/finishedAt for
+// the timer (§2.5.1). No 'lost': the reducer accepts guesses indefinitely.
+type GameStatus = 'playing' | 'won';
 
 interface Attempt {
   tiles: [string, string, string, string];
@@ -757,7 +826,7 @@ This keeps the reducer a pure function of `(state, action)` for `useReducer`, ke
 
 - `SUBMIT` is ignored unless all 4 slots are filled.
 - `SUBMIT` in a terminal status is a no-op.
-- `correctCount === 4` → `won`; otherwise `attempts.length === MAX_ATTEMPTS` → `lost`.
+- `correctCount === 4` → `won`. Otherwise the attempt is recorded and the game stays `playing` — guesses are free, there is no losing branch (§2.5.1).
 - `PLACE_TILE` onto a filled slot **swaps**; it never silently discards a tile.
 - A tile already in a slot cannot be placed into a second slot.
 - `MOVE_TILE` **exchanges** the two slots' contents, including when the
@@ -822,9 +891,8 @@ export class HttpPuzzleRepository implements PuzzleRepository {
 ├── <WordBank>
 │   └── <Tile × 11>            idle | selected | placed
 ├── <AttemptHistory>           past attempts as "N of 4 correct" rows
-├── <SubmitBar>                Check button + <LivesMeter>
-├── <ShareModal>               on win/loss — emoji grid + copy
-├── <StatsPanel>               streak, distribution histogram
+├── <SubmitBar>                Check button + <Timer> (was <LivesMeter> — §2.5.1) + Share button
+├── <StatsPanel>               streak, best/average time, time-bucketed distribution
 ├── <HowToPlay>                also opens from the header, not first visit only
 └── <SettingsPanel>            contents TBD (§8.5.1)
 ```
@@ -842,7 +910,7 @@ the pointer handlers and the row geometry, and each `<Slot>` receives a
 | Button | Status | Notes |
 |---|---|---|
 | **How to play** | Planned (§ Phase 5) | Was "shown once on first visit". Now also reachable any time, which is strictly better — people forget the rules by day three. |
-| **Statistics** | Planned (`StatsPanel`) | Streak, win %, distribution. No change. |
+| **Statistics** | Planned (`StatsPanel`) | Streak, best/average time, time-bucketed distribution. *(Was "win %" — moot once lives were removed, §2.5.1; every completed game is a win.)* |
 | **Settings** | **New — one agreed item** | **Dark mode**, as a control rather than an OS follow (`docs/design.md` 2.1, which previously ruled this out). It brings two costs: the choice must persist, and `data-theme` must land on `<html>` before first paint or every load flashes the wrong background — so an inline script in `index.html`, not React. Other candidates still open: reduced-motion override, hard reset of local stats. |
 | **Hint** | **Decided (§2.5.3)** | Confirms a word is in the answer, never its position. Reverses §14, and needs a field in the puzzle payload the engine has to compute. |
 
@@ -860,8 +928,8 @@ the pointer handlers and the row geometry, and each `<Slot>` receives a
 Not decoration — the count-only feedback model makes most of it nearly free, so there is no excuse for skipping it.
 
 - [ ] Tiles and slots are real `<button>` elements — keyboard and screen-reader support by default.
-- [ ] `aria-live="polite"` region announcing *"2 of 4 correct. 2 lives remaining."* after each submit.
-- [ ] `LivesMeter` hearts carry a text label (`aria-label="2 of 3 lives remaining"`) — never a bare glyph.
+- [ ] `aria-live="polite"` region announcing *"2 of 4 correct."* after each submit (no lives count any more — §2.5.1).
+- [ ] `Timer` carries a text label (`aria-label="Elapsed time 1:47"`) via `role="timer"` — never a bare glyph.
 - [ ] Focus moves to the next empty slot after a placement; focus is trapped in the share modal and restored on close.
 - [ ] Colour is never the sole signal — the count is stated in text. (Count-only feedback is inherently colourblind-safe.)
 - [ ] `prefers-reduced-motion` disables tile and reveal animations.
@@ -883,7 +951,7 @@ Small, individually cheap, and each one is a real bug report if skipped.
 | **Puzzle genuinely missing** (before launch, or archive exhausted) | `manifest.json` tells the client before it even tries. Friendly "no puzzle today" state; §13 Risk #8. |
 | **Two tabs open on the same puzzle** | Last write wins. Deliberately not solved — `localStorage` writes are synchronous and the loser is one stale board. Adding a `storage` listener to reconcile is more code than the bug is worth. `ponytail:` accepted, revisit only if anyone actually reports it. |
 | **System clock is wrong / user timezone-hops** | Accepted, exactly as Wordle does. The puzzle number follows local midnight; there is nothing to defend and nothing worth defending. |
-| **Player refreshes mid-attempt** | Progress is persisted on every state change, so the board and spent lives restore exactly. This is what `linkage:v1:progress:<id>` exists for. |
+| **Player refreshes mid-attempt** | Progress is persisted on every state change, so the board and the running timer restore exactly. This is what `linkage:v1:progress:<id>` exists for. |
 
 ---
 
@@ -949,7 +1017,12 @@ await env.DB.prepare(
 ).bind(puzzleId, attempts).run();
 ```
 
-Rate-limit by IP hash, cap `attempts` to `0..MAX_ATTEMPTS`, and treat the whole endpoint as best-effort: **if it fails, the game must not notice.** Global stats is a garnish, never a dependency.
+> This sketch predates §2.5.1 and still keys on `attempts` (with `0` for a
+> loss) from the old lives model. If this is ever actually built, key it on
+> a time bucket instead (`TIME_BUCKETS_MS`, `engine/stats.ts`) — there is no
+> loss to encode as `0`, and `attempts` is now unbounded.
+
+Rate-limit by IP hash, and treat the whole endpoint as best-effort: **if it fails, the game must not notice.** Global stats is a garnish, never a dependency.
 
 > This is deferred work. Nothing in Phases 1–5 depends on it, and the client's `PuzzleRepository` boundary (§4.2) means adopting it later touches the data tier only.
 
@@ -1018,32 +1091,32 @@ Rate-limit by IP hash, cap `attempts` to `0..MAX_ATTEMPTS`, and treat the whole 
 
 - [x] `engine/gameReducer.ts` — `makeGameReducer(puzzle)` (§8.2).
 - [x] Tap-to-place: select → place → remove → swap.
-- [x] `SUBMIT` → `correctCount`, append attempt, resolve `won` / `lost` / continue.
+- [x] `SUBMIT` → `correctCount`, append attempt, resolve `won` / continue. *(Originally `won` / `lost` / continue — the `lost` branch was removed by §2.5.1.)*
 - [x] `engine/dailyIndex.ts` — DST-safe (§8.3).
 - [x] `engine/stats.ts` — streak and distribution updates.
 - [x] Persist on every state change; restore mid-game on load; prune entries older than 7 days.
 - [x] **Midnight rollover** — recompute the puzzle number on `visibilitychange`/`focus`, prompt rather than yank (§8.7).
-- [x] `AttemptHistory` and `SubmitBar` with `LivesMeter` — spent hearts drained but still visible. A winning guess costs no heart; a life is lost by being *wrong*.
-- [x] Loss state reveals the full chain.
-- [x] Accessibility pass (§8.6) — `aria-live` on the feedback line, labelled hearts and confirmed tiles, a key for every pointer gesture (§2.4). Focus management on placement is outstanding.
-- [x] **Verify:** 113 Vitest tests — reducer, `dailyIndex` across both DST boundaries, stats streaks, the runtime guard, the codec against Python's fixture, and the pre-paint theme script.
-- [x] **Hints** (§2.5.3) — engine ranks them, the payload carries them, `TAKE_HINT` confirms membership and never places a tile.
+- [x] ~~`AttemptHistory` and `SubmitBar` with `LivesMeter` — spent hearts drained but still visible. A winning guess costs no heart; a life is lost by being *wrong*.~~ **Superseded (2026-09-11, §2.5.1):** `LivesMeter` deleted; `SubmitBar` now renders `Timer` (elapsed time, ticking, pauses on `visibilitychange`, jumps +20s on a hint).
+- [x] ~~Loss state reveals the full chain.~~ **Superseded:** no loss state, nothing to reveal.
+- [x] Accessibility pass (§8.6) — `aria-live` on the feedback line, a labelled `Timer` and confirmed tiles, a key for every pointer gesture (§2.4). Focus management on placement is outstanding.
+- [x] **Verify:** 123 Vitest tests — reducer (including the timer, pause/resume and hint penalty), `dailyIndex` across both DST boundaries, stats streaks, `shareText`, the runtime guard, the codec against Python's fixture, and the pre-paint theme script.
+- [x] **Hints** (§2.5.3) — engine ranks them, the payload carries them, `TAKE_HINT` confirms membership, never places a tile, and now also adds `HINT_TIME_PENALTY_MS` to the clock (§2.5.1).
 
 ### Phase 5 — Polish & Share
 
 *Goal: something worth sending to a friend.*
 
-- [ ] `engine/share.ts` — the emoji grid (§2.7); assert it leaks no positional data.
-- [ ] `ShareModal` — clipboard write + `execCommand` fallback, with a "Copied!" confirmation.
-- [ ] `StatsPanel` — streak, win %, distribution histogram.
+- [x] `engine/shareText.ts` — puzzle number, time, hint count (§2.7; supersedes the emoji-grid plan this item originally named — see §2.7 for why). Built alongside §2.5.1 rather than waiting for this phase, since the timer model needed a working share format regardless.
+- [ ] ~~`ShareModal` — clipboard write + `execCommand` fallback, with a "Copied!" confirmation.~~ Shipped as a plain "Share result" button on `SubmitBar` instead of a modal, with a "Copied!" label swap — the `execCommand` fallback for pre-Clipboard-API iOS Safari is still outstanding if that browser support matters.
+- [ ] `StatsPanel` — streak, best/average time, time-bucketed distribution histogram. *(Originally "win %" — moot, since every completed game is now a win; see §2.5.1.)*
 - [ ] Tile placement and reveal animations, gated on `prefers-reduced-motion`.
 - [ ] Responsive layout: 320 px → desktop; the board must never need a scroll on a phone.
 - [ ] Dark mode via Tailwind `dark:`.
-- [ ] `HowToPlay` modal, shown once on first visit.
+- [ ] `HowToPlay` modal, shown once on first visit — needs a rewrite regardless of this change, since it still describes lives.
 - [ ] Meta/OG tags for link previews; favicon.
 - [ ] **Optional:** `@dnd-kit/core` drag, dispatching the same reducer actions — only if playtesting says tap is not enough.
-- [ ] **Playtest gate before launch (Risk #11):** ~20 people play puzzles #1–#10 and report their `StatsPanel` numbers. Win rate under ~50% → tune puzzle difficulty, **not** the number of lives, and re-review.
-- [ ] **Verify:** Playwright smoke test — load → solve → share modal → clipboard content.
+- [ ] **Playtest gate before launch (Risk #11 — reframed by §2.5.1):** no longer a win-rate measurement, since there is no loss to measure against and the guess-scarcity argument is now a bet about player behaviour rather than a tunable constant (§2.5.1's `HINT_TIME_PENALTY_MS` bet). ~20 people play puzzles #1–#10; watch `StatsPanel` solve times and, qualitatively, whether anyone describes grinding through guesses rather than reasoning. Tune puzzle difficulty or the hint penalty if so — there is no life count left to add.
+- [ ] **Verify:** Playwright smoke test — load → solve → share button → clipboard content.
 
 ### Phase 6 — Admin Tool *(§16)*
 
@@ -1200,7 +1273,7 @@ Actions:
 | 8 | **Puzzle archive runs dry after 365 days** | Certain, eventually | Game stops | `manifest.json` lets the client show a graceful message. Re-run `generate` + `review` before the archive expires. |
 | 9 | **Spoilers via DevTools** | Low | Minor | Per-day files + obfuscation (§3.2). Accepted residual risk — Wordle shipped its whole word list. |
 | 10 | **Offensive or unfortunate word chains reach players** | Low | Reputational | Profanity blocklist in §7.1 plus the human review gate — a person reads every shipped puzzle. |
-| 11 | **Win rate too low under a short life count + count-only feedback** | Medium | Kills the share loop — nobody posts a failure | **Instrument first:** we ship no analytics (§14), so measure by *manual playtest* — ~20 people play puzzles #1–#10 and report the numbers from their own `StatsPanel`. That sample easily separates a 30% win rate from a 70% one, which is all the resolution this decision needs. If under ~50%, tune puzzle difficulty (distractor temptingness, `MIN_EDGE_WEIGHT`, review strictness); an extra heart is the last resort. **This gate is also what settles `MAX_ATTEMPTS` itself** (§2.5.1) — dev builds run at 5. |
+| 11 | **Reframed by §2.5.1 (2026-09-11): no more win rate to measure.** Originally *"win rate too low under a short life count + count-only feedback."* There is no loss state any more, so there is nothing below ~100% to watch — the real open risk is now *players grinding through free guesses instead of reasoning*, which §2.5.1 accepted as an unmeasured bet rather than a tunable constant. | Medium | Kills the share loop's *insight* premise even if everyone technically "wins" — solved-by-permutation is a hollow share | **Instrument first:** we ship no analytics (§14), so measure by *manual playtest* — ~20 people play puzzles #1–#10 and report solve times from their own `StatsPanel`, plus whether anyone describes grinding. If grinding shows up, the levers are puzzle difficulty (distractor temptingness, `MIN_EDGE_WEIGHT`, review strictness) or raising `HINT_TIME_PENALTY_MS` — there is no life count left to add as a last resort. |
 | 12 | **Golden test cannot run in CI** (needs the 1.2 GB dataset) | **Was certain** | The one test the game rests on never runs on a PR | **Resolved by design** — `verification-subgraph.json` (§7.10). CI runs on committed fixtures only. |
 | 13 | **ConceptNet CC BY-SA 4.0 attribution / ShareAlike** | Certain | Licence violation on the derived puzzle data | Attribution in README, in-app About modal, and `puzzles/LICENSE.txt` (§12.2). Decide **before** Phase 1. |
 | 14 | **Word repetition makes the year feel small** | High if unguarded | `gravity` in forty puzzles; players notice fast | `MAX_WORD_REUSE = 5` within any 120-puzzle rolling window, no duplicate `(start, end)` pairs, no repeated chains — enforced at export, `test_corpus_invariants.py` (§7.7.1). |
@@ -1302,7 +1375,7 @@ Completeness check: **every problem named anywhere in this document, and where i
 | ConceptNet CC BY-SA 4.0 attribution & ShareAlike | Attribution in README, in-app About, and `puzzles/LICENSE.txt` — decided before Phase 1 | §12.2 |
 | One bad puzzle ships; regenerating would reshuffle every date | Per-day files — replace one file, re-verify, push | §12.1 |
 | The archive runs dry after 365 days | `manifest.json` drives a graceful message; regenerate before it expires | §3.3 |
-| Win rate too low to sustain sharing, with no analytics to measure it | Manual playtest, ~20 people on puzzles #1–#10, reporting their own `StatsPanel` | §2.5.1, Risk #11 |
+| Grinding through free guesses instead of reasoning, with no analytics to measure it (reframed from "win rate too low" once lives were removed) | Manual playtest, ~20 people on puzzles #1–#10, reporting their own `StatsPanel` and whether they describe grinding | §2.5.1, Risk #11 |
 
 ---
 
@@ -1514,7 +1587,7 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | `WORD_MIN_LEN` / `WORD_MAX_LEN` | 3 / 12 | Longer words overflow a tile at 320 px (§3.1.1). |
 | `CHAIN_LENGTH` | 4 | Intermediate words. Structural — changing it touches the solver and the UI. |
 | `BANK_SIZE` | 11 | Spec allows 10–12. Falls back to 10 when safe distractors run short (Risk #16). |
-| `MAX_ATTEMPTS` | **5 (provisional)** | 3 proved too harsh. Settled at the Phase 5 playtest gate from observed win rate (§2.5.1, Risk #11) — client-side only, does not block the generator. |
+| `HINT_TIME_PENALTY_MS` | **20,000 (provisional)** | Replaces `MAX_ATTEMPTS`, removed with the lives model (§2.5.1). Added to the clock the instant a hint is taken. Settled at the Phase 5 playtest gate — client-side only, does not block the generator. |
 | `MIN_EDGE_WEIGHT` | 2.0 | Gate on the path's *weakest* edge. §7.9.4 Tier 1 may soften this to a rank. |
 | `BFS_TOP_K` | 40 | Neighbours kept per frontier expansion. |
 | `HUB_PERCENTILE` | `None` | **Automatic degree pruning is off** — the curated `GENERIC_HUBS` list does this job (§7.3, Risk #19). Set a float to re-enable; the machinery is kept and tested. |
@@ -1541,7 +1614,7 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | Decision | Chosen | Rejected | Rationale |
 |---|---|---|---|
 | Feedback model | **Count-only** (`X of 4`) | Positional green/grey; instant snap-back | Preserves semantic reasoning over deduction; makes the share grid spoiler-free for free. |
-| Attempts | **3, framed as lives** (`♥ ♥ ♥`) | 6 attempts | Hearts read as stakes, a counter reads as a budget. 3 tries makes deduction impossible by design, forcing semantic commitment. Watch win rate (Risk #11). |
+| Attempts | ~~3, framed as lives (`♥ ♥ ♥`)~~ — **superseded 2026-09-11: unlimited, scored on time** | 6 attempts; a visible timer (originally rejected, see §2.5.2) | Hearts read as stakes, but they cap the fun as hard as they cap the failure. §2.5.1 bets that a time score plus a real per-second cost discourages grinding as effectively as a hard limit did, without the harsh-fail feeling §2.5.2 (as lives) already knew 3 produced. Unmeasured — watch for grinding, not win rate (Risk #11). |
 | Pathfinding | **Bidirectional BFS**, `PathFinder` behind a protocol | Committing to BFS outright | Spec-mandated and gives diverse endpoints — but §7.9 Tier 5 may require constructive growth, so the seam stays open. |
 | Interaction | **Tap-to-place**, drag in Phase 5 | dnd-kit from the start | HTML5 DnD is dead on touch. Zero deps, keyboard-accessible, mobile-native. |
 | Curation | **Generated surplus + human review**, topping up until 365 are approved | Fully automated 365 | ConceptNet noise means valid ≠ fun. Roughly two evenings buys the difference. |

@@ -14,13 +14,13 @@
 
 import {
   CHAIN_LENGTH,
-  MAX_ATTEMPTS,
+  HINT_TIME_PENALTY_MS,
   type Action,
   type GameState,
   type Puzzle,
 } from './types';
 
-export function initialState(puzzleId: number): GameState {
+export function initialState(puzzleId: number, now: number): GameState {
   return {
     puzzleId,
     slots: Array<string | null>(CHAIN_LENGTH).fill(null),
@@ -28,6 +28,11 @@ export function initialState(puzzleId: number): GameState {
     status: 'playing',
     selectedTile: null,
     hintsUsed: [],
+    startedAt: now,
+    pausedAt: null,
+    totalPausedMs: 0,
+    hintPenaltyMs: 0,
+    finishedAt: null,
   };
 }
 
@@ -100,7 +105,11 @@ export function makeGameReducer(puzzle: Puzzle) {
         // and places nothing on the board.
         const next = puzzle.hints.find((w) => !state.hintsUsed.includes(w));
         if (next === undefined) return state;
-        return { ...state, hintsUsed: [...state.hintsUsed, next] };
+        return {
+          ...state,
+          hintsUsed: [...state.hintsUsed, next],
+          hintPenaltyMs: state.hintPenaltyMs + HINT_TIME_PENALTY_MS,
+        };
       }
 
       case 'SUBMIT': {
@@ -113,30 +122,51 @@ export function makeGameReducer(puzzle: Puzzle) {
           if (tiles[i] === puzzle.solution[i]) correctCount++;
         }
 
+        // Guesses are free (planning.md 2.5.2) — there is no losing branch.
         const attempts = [...state.attempts, { tiles: [...tiles], correctCount }];
-        const status =
-          correctCount === CHAIN_LENGTH
-            ? 'won'
-            : attempts.length >= MAX_ATTEMPTS
-              ? 'lost'
-              : 'playing';
+        const won = correctCount === CHAIN_LENGTH;
 
-        return { ...state, attempts, status, selectedTile: null };
+        return {
+          ...state,
+          attempts,
+          status: won ? 'won' : 'playing',
+          selectedTile: null,
+          finishedAt: won ? action.now : null,
+        };
+      }
+
+      case 'PAUSE': {
+        if (state.pausedAt !== null) return state;
+        return { ...state, pausedAt: action.now };
+      }
+
+      case 'RESUME': {
+        if (state.pausedAt === null) return state;
+        return {
+          ...state,
+          pausedAt: null,
+          totalPausedMs: state.totalPausedMs + (action.now - state.pausedAt),
+        };
       }
     }
   };
 }
 
 /**
- * Hearts still showing.
+ * Elapsed play time, in ms, as of `now` (planning.md 2.5.2).
  *
- * A life is lost by being *wrong*, so the winning guess does not cost one --
- * otherwise a first-try solve renders with a drained heart, which reads as a
- * penalty on the one screen people screenshot.
+ * `now` is a parameter rather than a call to `Date.now()` so this stays a
+ * pure function of its arguments — the tier boundary (planning.md 4.1)
+ * forbids the engine from reading the clock itself. Frozen once the game is
+ * won (`finishedAt` set) and while paused (`pausedAt` set); a hint's penalty
+ * is folded into `hintPenaltyMs` immediately, which is what makes the timer
+ * visibly jump the instant a hint is taken rather than only on the next tick.
  */
-export const livesRemaining = (state: GameState): number => {
-  const failed = state.status === 'won' ? state.attempts.length - 1 : state.attempts.length;
-  return Math.max(0, MAX_ATTEMPTS - failed);
+export const elapsedMs = (state: GameState, now: number): number => {
+  const end = state.finishedAt ?? now;
+  const ongoingPause = state.pausedAt !== null ? end - state.pausedAt : 0;
+  const raw = end - state.startedAt - state.totalPausedMs - ongoingPause;
+  return Math.max(0, raw) + state.hintPenaltyMs;
 };
 
 export const hintsRemaining = (state: GameState, puzzle: Puzzle): number =>

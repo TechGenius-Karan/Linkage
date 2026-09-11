@@ -8,7 +8,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalStorageProgressStore, emptyStats } from '../src/data/localStorageProgressStore';
-import { MAX_ATTEMPTS, type GameState } from '../src/engine/types';
+import { TIME_BUCKETS_MS } from '../src/engine/stats';
+import type { GameState } from '../src/engine/types';
+
+const DISTRIBUTION_LENGTH = TIME_BUCKETS_MS.length + 1;
 
 const state = (puzzleId: number): GameState => ({
   puzzleId,
@@ -17,6 +20,11 @@ const state = (puzzleId: number): GameState => ({
   status: 'playing',
   selectedTile: null,
   hintsUsed: [],
+  startedAt: 1_700_000_000_000,
+  pausedAt: null,
+  totalPausedMs: 0,
+  hintPenaltyMs: 0,
+  finishedAt: null,
 });
 
 /** A minimal in-memory Storage, so tests do not need a browser. */
@@ -64,26 +72,41 @@ describe('LocalStorageProgressStore', () => {
     const map = installStorage();
     map.set(
       'linkage:v1:progress:3',
-      JSON.stringify({ ...state(3), status: 'cheating' }),
+      JSON.stringify({ ...state(3), status: 'lost' }),
     );
+    expect(new LocalStorageProgressStore().readProgress(3)).toBeNull();
+  });
+
+  it('rejects a pre-timer-model save missing startedAt, rather than loading it into NaN elapsed time', () => {
+    // A game saved before §2.5.1 (lives -> timer) has no startedAt/pausedAt/
+    // totalPausedMs/hintPenaltyMs/finishedAt. Loading it as-is would compute
+    // elapsedMs as NaN throughout the running game — a fresh game is the safe
+    // fallback, same as any other shape mismatch.
+    const map = installStorage();
+    const preTimerShape: Record<string, unknown> = { ...state(3) };
+    for (const key of ['startedAt', 'pausedAt', 'totalPausedMs', 'hintPenaltyMs', 'finishedAt']) {
+      delete preTimerShape[key];
+    }
+    map.set('linkage:v1:progress:3', JSON.stringify(preTimerShape));
     expect(new LocalStorageProgressStore().readProgress(3)).toBeNull();
   });
 
   it('starts from empty stats when nothing is stored', () => {
     expect(new LocalStorageProgressStore().readStats()).toEqual(emptyStats());
-    expect(emptyStats().distribution).toHaveLength(MAX_ATTEMPTS);
+    expect(emptyStats().distribution).toHaveLength(DISTRIBUTION_LENGTH);
   });
 
   it('repairs a distribution of the wrong length', () => {
-    // MAX_ATTEMPTS is provisional (planning.md 2.5.1), so a stored histogram
-    // from an earlier build will be the wrong size for a returning player.
+    // TIME_BUCKETS_MS is provisional (planning.md 2.5.2), so a stored
+    // histogram from an earlier build will be the wrong size for a returning
+    // player.
     const map = installStorage();
     map.set(
       'linkage:v1:stats',
       JSON.stringify({ ...emptyStats(), distribution: [4, 2, 1] }),
     );
     const stats = new LocalStorageProgressStore().readStats();
-    expect(stats.distribution).toHaveLength(MAX_ATTEMPTS);
+    expect(stats.distribution).toHaveLength(DISTRIBUTION_LENGTH);
     expect(stats.distribution.slice(0, 3)).toEqual([4, 2, 1]);
   });
 
