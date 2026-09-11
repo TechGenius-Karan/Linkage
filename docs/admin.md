@@ -13,8 +13,8 @@ the game.
 *rest* of the project — the tool is local-only and must never ship — and points
 here for everything else.
 
-**Status.** §§1–8 are built and shipped (Phase 6a/6b/6c, PRs #9 and #10).
-§§9–14 are the proposal under review.
+**Status.** All of it is built. §§1–8 shipped as Phase 6a/6b/6c (PRs #9, #10);
+§§9–14 shipped as 6d/6e/6f.
 
 ---
 
@@ -592,14 +592,14 @@ line in its report counting hand-authored links.
 
 Independently mergeable, each useful alone, riskiest thing last.
 
-**6d — The interface.** Sideways ladder with weight bars, five cards, progress
+**6d — The interface.** *(done)* Sideways ladder with weight bars, five cards, progress
 rule, `--type-data`. No API change at all beyond a `limit`.
 Ships the throughput win on its own.
 
-**6e — Three screens and the sent-back lane.** `revisit` verdict, `UpcomingPage`,
+**6e — Three screens and the sent-back lane.** *(done)* `revisit` verdict, `UpcomingPage`,
 the seven-day strip. Pure state-machine work, no graph involved.
 
-**6f — Manual editing.** `WordEdit`, `validate_puzzle`, the editor UI, and
+**6f — Manual editing.** *(done)* `WordEdit`, `validate_puzzle`, the editor UI, and
 manual edges carried through to the exported subgraph. Last because it is the
 only part that can put a puzzle in front of a player that no generator ever
 checked.

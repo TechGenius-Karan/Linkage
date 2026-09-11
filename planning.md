@@ -1166,9 +1166,9 @@ its own — it replaces the review screen the reviewer could never actually see.
 - [x] **Verify:** a pinned puzzle lands on its day, auto-selection fills around
       it, and `date == epoch + (id - 1)` still holds for every puzzle in the run.
 
-**6d / 6e / 6f — Round 2: review at volume**
+**6d / 6e / 6f — Round 2: review at volume** *(done)*
 
-Proposed, not built. 33 verdicts in and 867 candidates left, the bottleneck
+45 verdicts in and 855 candidates left, the bottleneck
 moved from *care* to *throughput*. Five cards at a time, three screens, a
 sent-back lane, and hand-editing any word. **Planned in
 [`docs/admin.md`](docs/admin.md) §§9–14.** A reviewer may assert a link
