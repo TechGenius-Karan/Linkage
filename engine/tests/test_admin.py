@@ -32,7 +32,9 @@ def candidate_row(hash_: str, quality: float = 0.8) -> dict:
 
 @pytest.fixture
 def cfg(tmp_path):
-    config = Config(repo_root=tmp_path)
+    # A miniature bank: the fixture predates `validate_puzzle`, which enforces
+    # the real 10-12 range that a generated bank always satisfies.
+    config = Config(repo_root=tmp_path, bank_size_min=6)
     config.candidates_path.parent.mkdir(parents=True, exist_ok=True)
     config.candidates_path.write_text(
         json.dumps([candidate_row("aaa", 0.9), candidate_row("bbb", 0.5), candidate_row("ccc", 0.7)]),
@@ -73,7 +75,15 @@ class TestQueue:
         handlers.approve(cfg, "aaa")
         handlers.reject(cfg, "bbb", "mush")
         counts = handlers.queue(cfg)["counts"]
-        assert counts == {"total": 3, "pending": 1, "approved": 1, "scheduled": 0, "rejected": 1}
+        assert counts == {
+            "total": 3,
+            "pending": 1,
+            "decided": 2,
+            "approved": 1,
+            "scheduled": 0,
+            "rejected": 1,
+            "returned": 0,
+        }
 
     def test_limit_truncates(self, cfg):
         assert len(handlers.queue(cfg, limit=2)["puzzles"]) == 2
@@ -212,36 +222,43 @@ def edit(removed: str, added: str) -> dec.BankEdit:
     return dec.BankEdit(removed=removed, added=added)
 
 
-class TestSwap:
+class TestEdit:
     def test_previews_the_edited_bank(self, cfg, graph):
-        result = handlers.swap(cfg, graph, "aaa", (edit("cloud", "storm"),))
+        result = handlers.edit(cfg, graph, "aaa", (edit("cloud", "storm"),))
         assert "storm" in result["bank"]
         assert "cloud" not in result["bank"]
 
     def test_writes_nothing(self, cfg, graph):
         # A swap is a preview until the reviewer approves the puzzle it made.
         # That is what keeps the state machine at three states instead of four.
-        handlers.swap(cfg, graph, "aaa", (edit("cloud", "storm"),))
+        handlers.edit(cfg, graph, "aaa", (edit("cloud", "storm"),))
         assert not cfg.decisions_path.exists()
         assert handlers.queue(cfg)["counts"]["pending"] == 3
 
     def test_refuses_a_swap_that_creates_a_second_solution(self, cfg, graph):
-        with pytest.raises(handlers.BadRequest, match="second valid solution"):
-            handlers.swap(cfg, graph, "aaa", (edit("cloud", "wave"),))
+        # A refusal comes back as data, not as an error: the reviewer needs to
+        # see it *beside* the puzzle it is about. Only `approve` raises.
+        result = handlers.edit(cfg, graph, "aaa", (edit("cloud", "wave"),))
+        assert result["ok"] is False
+        assert any("second arrangement" in r for r in result["refusals"])
 
     def test_a_refused_swap_leaves_the_puzzle_in_the_queue(self, cfg, graph):
-        with pytest.raises(handlers.BadRequest):
-            handlers.swap(cfg, graph, "aaa", (edit("cloud", "wave"),))
+        handlers.edit(cfg, graph, "aaa", (edit("cloud", "wave"),))
         assert "aaa" in [p["hash"] for p in handlers.queue(cfg)["puzzles"]]
+        assert not cfg.decisions_path.exists()
 
-    def test_names_which_swap_was_refused_not_just_that_one_was(self, cfg, graph):
-        with pytest.raises(handlers.BadRequest, match="wave"):
-            handlers.swap(cfg, graph, "aaa", (edit("cloud", "storm"), edit("shark", "wave")))
+    def test_names_the_alternate_answer_rather_than_just_refusing(self, cfg, graph):
+        # "It would have a second solution" is unactionable; naming the other
+        # arrangement shows the reviewer exactly what they created.
+        result = handlers.edit(
+            cfg, graph, "aaa", (edit("cloud", "storm"), edit("shark", "wave"))
+        )
+        assert any("wave" in r for r in result["refusals"])
 
     def test_refuses_to_touch_a_rejected_puzzle(self, cfg, graph):
         handlers.reject(cfg, "aaa", "weak opening", 0)
         with pytest.raises(handlers.BadRequest, match="rejected"):
-            handlers.swap(cfg, graph, "aaa", (edit("cloud", "storm"),))
+            handlers.edit(cfg, graph, "aaa", (edit("cloud", "storm"),))
 
 
 class TestSwapOptions:
@@ -249,7 +266,7 @@ class TestSwapOptions:
         options = handlers.swap_options(cfg, graph, "aaa", "cloud")["options"]
         assert options
         for option in options:
-            handlers.swap(cfg, graph, "aaa", (edit("cloud", option["word"]),))
+            handlers.edit(cfg, graph, "aaa", (edit("cloud", option["word"]),))
 
     def test_never_offers_the_word_that_breaks_uniqueness(self, cfg, graph):
         options = handlers.swap_options(cfg, graph, "aaa", "cloud")["options"]
@@ -289,7 +306,7 @@ class TestApproveWithEdits:
     def test_reproves_the_edits_rather_than_trusting_the_client(self, cfg, graph):
         # `swap` already proved them, and this is the one property the whole
         # game rests on -- a client that skipped the preview must not get past.
-        with pytest.raises(handlers.BadRequest, match="second valid solution"):
+        with pytest.raises(handlers.BadRequest, match="second arrangement"):
             handlers.approve(cfg, "aaa", edits=(edit("cloud", "wave"),), graph=graph)
         assert not cfg.decisions_path.exists()
 
@@ -297,7 +314,9 @@ class TestApproveWithEdits:
         handlers.approve(cfg, "aaa", edits=(edit("cloud", "storm"),), graph=graph)
         view = handlers.pool(cfg)["pooled"][0]
         assert "storm" in view["bank"] and "cloud" not in view["bank"]
-        assert view["bankEdits"] == [{"removed": "cloud", "added": "storm"}]
+        assert view["bankEdits"] == [
+            {"field": "bank", "removed": "cloud", "added": "storm"}
+        ]
 
 
 # --------------------------------------------------------------------------

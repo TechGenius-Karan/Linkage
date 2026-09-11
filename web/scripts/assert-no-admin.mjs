@@ -23,8 +23,10 @@ const FORBIDDEN = [
   'linkage admin',
   'adminClient',
   'ReviewCard',
-  'BankEditor',
+  'PuzzleEditor',
   'PoolPage',
+  'ReviewPage',
+  'UpcomingPage',
 ];
 
 function walk(dir) {

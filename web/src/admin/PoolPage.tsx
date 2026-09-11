@@ -1,9 +1,9 @@
 /**
- * The approved pool, and choosing a date (planning.md 16.2, 16.6).
+ * The approved pool, and choosing a date (docs/admin.md 2, 7, 8, 12.2).
  *
- * Approving records taste; scheduling is a separate act. This is the screen
- * where the second one happens, and the whole reason the decision record
- * carries `date: null` until somebody deliberately fills it in.
+ * Approving records taste; scheduling is a separate act. This is where the
+ * second one happens, and the whole reason a decision carries `date: null`
+ * until somebody deliberately fills it in.
  *
  * Dates are offered as a **run of slots**, not a date picker. The archive's one
  * hard invariant is `date == epoch + (id - 1)` days, so a puzzle occupies a day
@@ -15,10 +15,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   fetchPool,
   schedulePuzzle,
-  unschedulePuzzle,
-  type PoolPuzzle,
+  sendBackPuzzle,
   type PoolResponse,
 } from './adminClient';
+import { Ladder } from './Ladder';
 
 type Load =
   | { kind: 'loading' }
@@ -26,7 +26,7 @@ type Load =
   | { kind: 'error'; message: string };
 
 export interface PoolPageProps {
-  /** Refresh the queue counts in the header, which a schedule changes. */
+  /** Refresh the header counts, which scheduling and sending back both change. */
   onChanged: () => void;
 }
 
@@ -35,7 +35,8 @@ export function PoolPage({ onChanged }: PoolPageProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
-  /** Corpus warnings from the last schedule — 16.6's whole point. */
+  const [showAllDays, setShowAllDays] = useState(false);
+  /** Corpus warnings from the last schedule — docs/admin.md 7's whole point. */
   const [warnings, setWarnings] = useState<{ date: string; lines: string[] } | null>(null);
 
   const refresh = useCallback(async () => {
@@ -65,16 +66,50 @@ export function PoolPage({ onChanged }: PoolPageProps) {
   if (load.kind === 'loading') return <p className="text-ink-muted">Loading the pool…</p>;
   if (load.kind === 'error') return <p className="text-[15px] text-heart">{load.message}</p>;
 
-  const { scheduled, pooled, slots, archive } = load.data;
-  const free = slots.filter((slot) => slot.hash === null);
+  const { pooled, slots, openDays, archive } = load.data;
+  const free = slots.filter((s) => s.hash === null);
+  const offered = showAllDays ? free.map((s) => s.date) : openDays;
+  const taken = slots.filter((s) => s.hash !== null).map((s) => s.date);
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="text-xs text-ink-muted">
-        {archive.count} shipped
-        {archive.lastDate !== null ? `, through ${archive.lastDate}` : ''} · next slot{' '}
-        {archive.nextDate}
-      </p>
+      {/* The seven-day strip: a week is the unit a person plans in (12.2). */}
+      <section className="rounded-lg border border-rule bg-surface p-3">
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <h2 className="text-sm font-semibold">
+            Next open days{' '}
+            <span className="font-data text-[10px] font-normal text-ink-muted">
+              {free.length} free in the run
+            </span>
+          </h2>
+          <span className="font-data text-[10px] text-ink-muted">
+            {archive.count} shipped
+            {archive.lastDate !== null ? ` · through ${archive.lastDate}` : ''}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {openDays.map((day) => (
+            <span
+              key={day}
+              className="rounded border border-rule px-2 py-1 font-data text-xs tabular-nums"
+            >
+              {day.slice(5)}
+            </span>
+          ))}
+          {openDays.length === 0 && (
+            <span className="text-[13px] text-ink-muted">
+              Every day in the run is taken. Run <code className="font-data">linkage export</code>.
+            </span>
+          )}
+        </div>
+        {taken.length > 0 && (
+          // Skipped days named rather than hidden, so a gap is visible before
+          // export reports it (docs/admin.md 8).
+          <p className="mt-2 font-data text-[10px] text-ink-muted">
+            taken: {taken.map((d) => d.slice(5)).join(', ')}
+          </p>
+        )}
+      </section>
 
       {error !== null && (
         <p className="rounded-lg border border-heart bg-heart/10 px-3 py-2 text-[13px] text-heart">
@@ -89,7 +124,7 @@ export function PoolPage({ onChanged }: PoolPageProps) {
             <button
               type="button"
               onClick={() => setWarnings(null)}
-              className="ring-focus rounded-md px-1.5 text-xs underline"
+              className="ring-focus rounded px-1.5 text-xs underline"
             >
               Dismiss
             </button>
@@ -106,104 +141,92 @@ export function PoolPage({ onChanged }: PoolPageProps) {
         </div>
       )}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">On the calendar ({scheduled.length})</h2>
-        {scheduled.length === 0 ? (
-          <p className="text-[13px] text-ink-muted">
-            Nothing scheduled. Export will propose dates for the pool below.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {scheduled.map((puzzle) => (
-              <li
-                key={puzzle.hash}
-                className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-surface px-3 py-2"
-              >
-                <span className="flex items-baseline gap-2">
-                  <span className="text-xs tabular-nums text-ink-muted">{puzzle.date}</span>
-                  <Ladder puzzle={puzzle} />
-                </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void act(() => unschedulePuzzle(puzzle.hash))}
-                  className="ring-focus shrink-0 rounded-md px-2 py-1 text-xs underline disabled:opacity-40"
-                >
-                  Unschedule
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Approved, waiting for a date ({pooled.length})</h2>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold">
+          Approved, waiting for a date{' '}
+          <span className="font-data text-xs font-normal text-ink-muted">{pooled.length}</span>
+        </h2>
         {pooled.length === 0 ? (
           <p className="text-[13px] text-ink-muted">
             The pool is empty. Approve some candidates in the queue.
           </p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
-            {pooled.map((puzzle) => (
-              <li
-                key={puzzle.hash}
-                className="flex flex-col gap-2 rounded-lg border border-rule bg-surface px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <Ladder puzzle={puzzle} />
+          pooled.map((puzzle) => (
+            <article
+              key={puzzle.hash}
+              className="flex flex-col gap-2 rounded-lg border border-rule bg-surface px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Ladder
+                  chain={puzzle.chain}
+                  weights={puzzle.linkWeights}
+                  relations={puzzle.relations}
+                  edits={puzzle.bankEdits}
+                />
+                <div className="flex shrink-0 items-center gap-1.5">
                   <button
                     type="button"
                     disabled={busy || free.length === 0}
                     onClick={() => setPicking(picking === puzzle.hash ? null : puzzle.hash)}
                     aria-expanded={picking === puzzle.hash}
                     title={free.length === 0 ? 'Every slot in the run is taken' : undefined}
-                    className="ring-focus shrink-0 rounded-md border border-rule px-2 py-1 text-xs disabled:opacity-40"
+                    className="ring-focus rounded-md border border-rule px-2 py-1 text-xs disabled:opacity-40"
                   >
                     Schedule
                   </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void act(() => sendBackPuzzle(puzzle.hash))}
+                    title="Back to the review queue, into its own lane"
+                    className="ring-focus rounded-md px-2 py-1 text-xs underline disabled:opacity-40"
+                  >
+                    Send back
+                  </button>
                 </div>
-                {picking === puzzle.hash && (
-                  <div className="flex flex-wrap gap-1">
-                    {free.map((slot) => (
-                      <button
-                        key={slot.date}
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void act(async () => {
-                            const result = await schedulePuzzle(puzzle.hash, slot.date);
-                            setWarnings({ date: result.date, lines: result.warnings });
-                            setPicking(null);
-                          })
-                        }
-                        className="ring-focus rounded-md border border-rule px-2 py-1 text-xs tabular-nums disabled:opacity-40 hover:bg-accent-sub"
-                      >
-                        {slot.date.slice(5)}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+              </div>
+
+              {puzzle.manualEdges.length > 0 && (
+                <p className="font-data text-[10px] text-accent">
+                  {puzzle.manualEdges.length} hand-authored link
+                  {puzzle.manualEdges.length === 1 ? '' : 's'}
+                </p>
+              )}
+
+              {picking === puzzle.hash && (
+                <div className="flex flex-wrap items-center gap-1">
+                  {offered.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void act(async () => {
+                          const result = await schedulePuzzle(puzzle.hash, day);
+                          setWarnings({ date: result.date, lines: result.warnings });
+                          setPicking(null);
+                        })
+                      }
+                      className="ring-focus rounded border border-rule px-2 py-1 font-data text-xs tabular-nums hover:bg-accent-sub disabled:opacity-40"
+                    >
+                      {day.slice(5)}
+                    </button>
+                  ))}
+                  {free.length > offered.length && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllDays(true)}
+                      className="ring-focus rounded px-1.5 py-1 text-xs underline"
+                    >
+                      +{free.length - offered.length} more
+                    </button>
+                  )}
+                </div>
+              )}
+            </article>
+          ))
         )}
       </section>
     </div>
-  );
-}
-
-function Ladder({ puzzle }: { puzzle: PoolPuzzle }) {
-  return (
-    <span className="font-word text-[13px]">
-      <span className="font-semibold uppercase">{puzzle.start}</span>
-      <span className="text-ink-muted"> → {puzzle.solution.join(' → ')} → </span>
-      <span className="font-semibold uppercase">{puzzle.end}</span>
-      {puzzle.bankEdits.length > 0 && (
-        <span className="ml-1.5 text-xs text-accent">
-          ({puzzle.bankEdits.length} swap{puzzle.bankEdits.length === 1 ? '' : 's'})
-        </span>
-      )}
-    </span>
   );
 }

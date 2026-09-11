@@ -17,7 +17,7 @@ from ..data.stemming import PorterStemmerAdapter
 from ..domain import corpus
 from ..domain import decisions as dec
 from ..domain import distractors
-from ..domain.models import Path as ChainPath
+from ..domain import refine
 
 
 class BadRequest(ValueError):
@@ -59,42 +59,71 @@ def _candidate_view(row: dict, decision: dec.Decision | None = None) -> dict:
         "quality": row.get("quality"),
         "linkWeights": list(row.get("weights", ())),
         "relations": [list(r) for r in row.get("relations", ())],
-        "bankEdits": [{"removed": e.removed, "added": e.added} for e in edits],
+        "bankEdits": _edits_json(edits),
+        "manualEdges": [list(e) for e in (decision.manual_edges if decision else ())],
         "date": decision.date if decision is not None else None,
     }
 
 
-def _path_from_row(row: dict) -> ChainPath:
-    """Rehydrate the chain, for the graph work that a swap needs."""
-    return ChainPath(
-        start=row["start"],
-        end=row["end"],
-        steps=tuple(row["solution"]),
-        weights=tuple(row["weights"]),
-        relations=tuple(tuple(r) for r in row["relations"]),
-    )
+def _edits_json(edits: tuple[dec.WordEdit, ...]) -> list[dict]:
+    return [
+        {
+            "field": e.field,
+            "removed": e.removed,
+            "added": e.added,
+            **({"index": e.index} if e.index is not None else {}),
+        }
+        for e in edits
+    ]
 
 
-def read_edits(raw: object) -> tuple[dec.BankEdit, ...]:
+def read_edits(raw: object) -> tuple[dec.WordEdit, ...]:
+    """Parse hand edits. `field` defaults to "bank", which every edit was
+    before hand editing existed."""
     if raw is None:
         return ()
     if not isinstance(raw, list):
         raise BadRequest("edits must be a list")
-    out: list[dec.BankEdit] = []
+    out: list[dec.WordEdit] = []
     for entry in raw:
-        if not isinstance(entry, dict) or not entry.get("removed") or not entry.get("added"):
-            raise BadRequest("each edit needs a removed and an added word")
-        out.append(dec.BankEdit(removed=str(entry["removed"]), added=str(entry["added"])))
+        if not isinstance(entry, dict) or not entry.get("added"):
+            raise BadRequest("each edit needs a replacement word")
+        try:
+            out.append(
+                dec.WordEdit(
+                    field=entry.get("field", "bank"),
+                    removed=str(entry.get("removed", "")),
+                    added=str(entry["added"]),
+                    index=entry.get("index"),
+                )
+            )
+        except dec.DecisionError as exc:
+            raise BadRequest(str(exc)) from exc
     return tuple(out)
 
 
-def queue(cfg: Config, *, limit: int | None = None) -> dict:
+#: How many candidates the review screen holds at once (docs/admin.md 10.3).
+#: Five is the largest window that needs no client-side bookkeeping: the queue
+#: is sorted deterministically, so "the first five pending" after a verdict is
+#: by construction the four survivors in their original order plus one arrival.
+QUEUE_WINDOW = 5
+
+#: Open days surfaced on the schedule screen (docs/admin.md 12.2). A week is
+#: the unit a person plans in; the whole thirty-day run is a wall.
+OPEN_DAYS = 7
+
+
+def queue(cfg: Config, *, limit: int | None = QUEUE_WINDOW) -> dict:
     """Candidates with no verdict yet, hardest-first by quality.
 
-    The ordering is the scorer's, and 7.7.2 is candid that it barely beats
-    chance -- but a queue ordered badly is still a queue, and stable ordering
-    matters more here than good ordering: a reviewer who reloads must not lose
-    their place.
+    The ordering is the scorer's, and `docs/engine.md` 7.7.2 is candid that it
+    barely beats chance -- but a queue ordered badly is still a queue, and
+    stable ordering matters more here than good ordering: a reviewer who
+    reloads must not lose their place, and the five-card window depends on it.
+
+    `returned` is a separate lane, not part of the window. A puzzle sent back
+    from the pool is one the reviewer already chose; letting it fall into 867
+    pending candidates would be losing it (docs/admin.md 12.1).
     """
     rows = exporters.read_candidates(cfg.candidates_path)
     decisions = exporters.read_decisions(cfg.decisions_path)
@@ -103,14 +132,22 @@ def queue(cfg: Config, *, limit: int | None = None) -> dict:
     pending.sort(key=lambda r: (-(r.get("quality") or 0.0), r["hash"]))
 
     split = dec.split(decisions)
+    by_hash = {r["hash"]: r for r in rows}
     return {
         "puzzles": [_candidate_view(r) for r in pending[:limit]],
+        "returned": [
+            _candidate_view(by_hash[h], decisions[h])
+            for h in split.returned
+            if h in by_hash
+        ],
         "counts": {
             "total": len(rows),
             "pending": len(pending),
+            "decided": len(decisions) - len(split.returned),
             "approved": len(split.approved_pool) + len(split.scheduled),
             "scheduled": len(split.scheduled),
             "rejected": len(split.rejected),
+            "returned": len(split.returned),
         },
     }
 
@@ -126,7 +163,8 @@ def approve(
     cfg: Config,
     hash_: str,
     *,
-    edits: tuple[dec.BankEdit, ...] = (),
+    edits: tuple[dec.WordEdit, ...] = (),
+    manual_edges: tuple[dec.ManualEdge, ...] = (),
     graph: nx.Graph | None = None,
 ) -> dict:
     """Record that the reviewer wants this puzzle, with any hand edits.
@@ -135,17 +173,22 @@ def approve(
     own, so there is no fourth state for "edited but undecided" -- a swap is a
     preview until the reviewer commits to the puzzle it produced.
 
-    They are re-proved here even though `swap` already proved them. The check
+    They are re-proved here even though `edit` already proved them. The check
     is 60ms and this is the one property the whole game rests on; a client that
     skipped the preview must not be able to talk its way past it.
     """
     rows, decisions = _load_pair(cfg, hash_)
-    if hash_ in decisions:
+    existing = decisions.get(hash_)
+    # A puzzle sent back for another look is *meant* to be re-decided; anything
+    # else with a verdict is not (docs/admin.md 12.1).
+    if existing is not None and not existing.is_returned:
         raise BadRequest("that puzzle already has a verdict")
-    if edits and graph is not None:
-        _replay(cfg, graph, rows[hash_], edits)
+    if (edits or manual_edges) and graph is not None:
+        _, verdict = _check(cfg, graph, rows[hash_], edits, manual_edges)
+        if not verdict.ok:
+            raise BadRequest("; ".join(verdict.refusals))
 
-    decisions[hash_] = dec.approve(_today(), edits=edits)
+    decisions[hash_] = dec.approve(_today(), edits=edits, manual_edges=manual_edges)
     exporters.write_decisions(cfg.decisions_path, decisions)
     # Approving records taste and schedules nothing (planning.md 16.2). The
     # response says so explicitly so the UI cannot imply otherwise.
@@ -154,7 +197,8 @@ def approve(
 
 def reject(cfg: Config, hash_: str, reason: str, bad_link: int | None = None) -> dict:
     _, decisions = _load_pair(cfg, hash_)
-    if hash_ in decisions:
+    existing = decisions.get(hash_)
+    if existing is not None and not existing.is_returned:
         raise BadRequest("that puzzle already has a verdict")
 
     try:
@@ -185,6 +229,29 @@ def undo(cfg: Config, hash_: str) -> dict:
     return {"hash": hash_, "verdict": None}
 
 
+def send_back(cfg: Config, hash_: str) -> dict:
+    """Return an approved puzzle to the review queue (docs/admin.md 12.1).
+
+    Named `send_back` rather than `revisit` only because the domain owns that
+    verb; the endpoint is `/api/admin/revisit`.
+
+    Distinct from `undo`, which deletes the verdict outright and drops the
+    puzzle back among the 867 pending. This keeps a record, so the puzzle
+    lands in its own lane where the reviewer can actually find it again.
+    """
+    _, decisions = _load_pair(cfg, hash_)
+    decision = decisions.get(hash_)
+    if decision is None:
+        raise BadRequest("that puzzle has no verdict")
+    try:
+        decisions[hash_] = dec.revisit(_today(), decision)
+    except dec.DecisionError as exc:
+        raise BadRequest(str(exc)) from exc
+
+    exporters.write_decisions(cfg.decisions_path, decisions)
+    return {"hash": hash_, "verdict": dec.REVISIT}
+
+
 # --------------------------------------------------------------------------
 # 6b -- refining a bank, with the engine holding a veto (planning.md 16.4)
 # --------------------------------------------------------------------------
@@ -194,49 +261,83 @@ def undo(cfg: Config, hash_: str) -> dict:
 _STEMMER = PorterStemmerAdapter()
 
 
-def _replay(
-    cfg: Config, graph: nx.Graph, row: dict, edits: tuple[dec.BankEdit, ...]
-) -> tuple[str, ...]:
-    """Apply every edit in order, proving the bank after each one.
-
-    Proving each step rather than only the final bank is what makes the
-    *reason* accurate: the reviewer is told which swap was refused, rather
-    than that something, somewhere, was.
-    """
-    path = _path_from_row(row)
-    bank = tuple(row["bank"])
-    for edit in edits:
-        try:
-            bank = distractors.swap_decoy(
-                cfg, graph, _STEMMER, path, bank, edit.removed, edit.added
-            )
-        except distractors.SwapRefused as exc:
-            raise BadRequest(str(exc)) from exc
-    return bank
+def read_edges(raw: object) -> tuple[dec.ManualEdge, ...]:
+    """Links the reviewer asserted (docs/admin.md 11.2)."""
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise BadRequest("manualEdges must be a list")
+    out: list[dec.ManualEdge] = []
+    for entry in raw:
+        if not isinstance(entry, (list, tuple)) or len(entry) not in (2, 3):
+            raise BadRequest("each asserted link is [from, to] or [from, to, weight]")
+        weight = float(entry[2]) if len(entry) == 3 else refine.ASSERTED_WEIGHT
+        out.append((str(entry[0]), str(entry[1]), weight))
+    return tuple(out)
 
 
-def swap(
-    cfg: Config, graph: nx.Graph, hash_: str, edits: tuple[dec.BankEdit, ...]
+def _effective(
+    row: dict, edits: tuple[dec.WordEdit, ...]
+) -> dec.Puzzle:
+    try:
+        return dec.apply_puzzle_edits(
+            row["start"], row["end"], row["solution"], row["bank"], edits
+        )
+    except dec.DecisionError as exc:
+        raise BadRequest(str(exc)) from exc
+
+
+def _check(
+    cfg: Config,
+    graph: nx.Graph,
+    row: dict,
+    edits: tuple[dec.WordEdit, ...],
+    manual_edges: tuple[dec.ManualEdge, ...],
+) -> tuple[dec.Puzzle, refine.Verdict]:
+    puzzle = _effective(row, edits)
+    verdict = refine.validate_puzzle(cfg, graph, _STEMMER, puzzle, manual_edges)
+    return puzzle, verdict
+
+
+def edit(
+    cfg: Config,
+    graph: nx.Graph,
+    hash_: str,
+    edits: tuple[dec.WordEdit, ...],
+    manual_edges: tuple[dec.ManualEdge, ...] = (),
 ) -> dict:
-    """Preview a bank edit. Proves it, and **writes nothing**.
+    """Preview a hand edit. Proves it, and **writes nothing**.
 
-    Refusing is the whole point (planning.md 16.4): the reviewer cannot break
-    uniqueness by hand even deliberately, and a refused swap leaves the puzzle
-    exactly as it was, still in the queue. The edits are held by the UI until
-    the reviewer approves, at which point `approve` stores them -- so there is
-    no fourth state for "edited but undecided".
+    Generalises the old `swap`, which could only touch decoys. Any word may
+    change now -- the reviewer's judgement is the authority on whether a chain
+    reads (docs/admin.md 11) -- and the machine keeps exactly one veto:
+    uniqueness, plus the chords that manufacture it.
+
+    Refusals block approval. Notes do not: they are the tool saying what it
+    noticed, including which rungs now rest on the reviewer's word rather than
+    ConceptNet's, and the reviewer is free to overrule all of it.
     """
     rows, decisions = _load_pair(cfg, hash_)
     if hash_ in decisions and decisions[hash_].verdict == dec.REJECT:
         raise BadRequest("that puzzle is rejected -- undo the verdict first")
 
-    bank = _replay(cfg, graph, rows[hash_], edits)
-    solution = set(rows[hash_]["solution"])
+    puzzle, verdict = _check(cfg, graph, rows[hash_], edits, manual_edges)
+    solution = set(puzzle.solution)
     return {
         "hash": hash_,
-        "bank": list(bank),
-        "decoys": [w for w in bank if w not in solution],
-        "bankEdits": [{"removed": e.removed, "added": e.added} for e in edits],
+        "start": puzzle.start,
+        "end": puzzle.end,
+        "solution": list(puzzle.solution),
+        "chain": list(puzzle.nodes),
+        "bank": list(puzzle.bank),
+        "decoys": [w for w in puzzle.bank if w not in solution],
+        "refusals": list(verdict.refusals),
+        "notes": list(verdict.notes),
+        "assertedLinks": list(verdict.asserted_links),
+        "brokenLinks": list(verdict.broken_links),
+        "ok": verdict.ok,
+        "bankEdits": _edits_json(edits),
+        "manualEdges": [list(e) for e in manual_edges],
     }
 
 
@@ -245,25 +346,33 @@ def swap_options(
     graph: nx.Graph,
     hash_: str,
     removed: str,
-    edits: tuple[dec.BankEdit, ...] = (),
+    edits: tuple[dec.WordEdit, ...] = (),
+    manual_edges: tuple[dec.ManualEdge, ...] = (),
     limit: int = 8,
 ) -> dict:
     """Replacements for one decoy that the engine would actually accept.
 
-    Without these a reviewer types a word and hopes, and most guesses are
-    refused for reasons they cannot see from outside. Each option carries its
+    Without these a reviewer types a word and hopes; most guesses are refused
+    for reasons they cannot see from outside. Each option carries its
     temptingness and the strategy that proposed it, so softening a bank --
     round 1's actual complaint -- is a visible move rather than a shot in the
     dark.
+
+    Computed against the *effective* puzzle, so a reviewer who has already
+    rewritten an answer word gets suggestions for the chain they now have.
     """
     rows, _ = _load_pair(cfg, hash_)
     row = rows[hash_]
-    bank = _replay(cfg, graph, row, edits)
-    if removed not in bank:
+    puzzle = _effective(row, edits)
+    if removed not in puzzle.bank:
         raise BadRequest(f"{removed!r} is not in the bank")
+    if removed in puzzle.solution:
+        raise BadRequest(f"{removed!r} is an answer word, not a decoy")
 
+    g = refine.augmented(graph, manual_edges)
+    path = refine.effective_path(graph, puzzle, manual_edges)
     options = distractors.safe_swaps(
-        cfg, graph, _STEMMER, _path_from_row(row), bank, removed, limit=limit
+        cfg, g, _STEMMER, path, puzzle.bank, removed, limit=limit
     )
     return {
         "hash": hash_,
@@ -354,10 +463,14 @@ def pool(cfg: Config) -> dict:
         key=lambda v: (-(v["quality"] or 0.0), v["hash"]),
     )
 
+    slots = [{"date": d, "hash": taken.get(d)} for d in _slot_dates(cfg, first_date)]
     return {
         "scheduled": scheduled,
         "pooled": pooled,
-        "slots": [{"date": d, "hash": taken.get(d)} for d in _slot_dates(cfg, first_date)],
+        "slots": slots,
+        # A week is the unit a person plans in, and thirty chips is a wall. The
+        # full run stays in `slots` for anyone who wants it (docs/admin.md 12.2).
+        "openDays": [s["date"] for s in slots if s["hash"] is None][:OPEN_DAYS],
         "archive": {
             "count": len(archive),
             "lastDate": archive[-1].date if archive else None,

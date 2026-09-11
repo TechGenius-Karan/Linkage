@@ -234,7 +234,9 @@ def write_licence_notice(cfg: Config) -> Path:
 
 
 def build_verification_subgraph(
-    graph: nx.Graph, puzzles: Sequence[Puzzle]
+    graph: nx.Graph,
+    puzzles: Sequence[Puzzle],
+    manual_edges: Sequence[tuple[str, str, float]] = (),
 ) -> list[list]:
     """The **induced** subgraph over every puzzle's bank plus its endpoints.
 
@@ -243,6 +245,12 @@ def build_verification_subgraph(
     was handed exactly one solution's worth of edges, and would pass while
     proving nothing. Every edge among those 13 nodes goes in, so an alternate
     chain, if one existed, would be visible.
+
+    `manual_edges` are links a reviewer asserted that ConceptNet does not carry
+    (docs/admin.md 11.2). They **must** be exported: the golden test re-solves
+    every shipped puzzle from this file alone, so a rung missing from it makes
+    the puzzle unsolvable in CI -- not because it is bad, but because the
+    evidence for it never left this machine.
     """
     edges: dict[tuple[str, str], float] = {}
     for puzzle in puzzles:
@@ -251,21 +259,28 @@ def build_verification_subgraph(
             data = graph.get_edge_data(a, b)
             if data is not None:
                 edges[(a, b)] = data["weight"]
+    for first, second, weight in manual_edges:
+        a, b = sorted((first, second))
+        edges.setdefault((a, b), weight)
     return [[a, b, round(w, 4)] for (a, b), w in sorted(edges.items())]
 
 
 def write_verification_subgraph(
-    cfg: Config, graph: nx.Graph, puzzles: Sequence[Puzzle]
+    cfg: Config,
+    graph: nx.Graph,
+    puzzles: Sequence[Puzzle],
+    manual_edges: Sequence[tuple[str, str, float]] = (),
 ) -> Path:
     _write_json(
         cfg.subgraph_path,
         {
             "schemaVersion": cfg.schema_version,
             "note": (
-                "Induced subgraph over every shipped puzzle's bank + endpoints. "
-                "Verification only. Plaintext answer key -- never serve this."
+                "Induced subgraph over every shipped puzzle's bank + endpoints, "
+                "plus any link a reviewer asserted by hand. Verification only. "
+                "Plaintext answer key -- never serve this."
             ),
-            "edges": build_verification_subgraph(graph, puzzles),
+            "edges": build_verification_subgraph(graph, puzzles, manual_edges),
         },
     )
     return cfg.subgraph_path
