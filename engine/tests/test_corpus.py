@@ -13,6 +13,7 @@ from linkage_engine.domain.corpus import (
     CorpusViolation,
     check,
     select_diverse,
+    warnings_for,
     word_usage,
 )
 from linkage_engine.domain.models import Candidate, Path, Puzzle
@@ -396,3 +397,72 @@ def test_batches_accumulate_into_an_archive_that_passes_check():
 
     assert len(shipped) == 15
     check(shipped, max_word_reuse=3, window=WINDOW)  # must not raise
+
+
+# --------------------------------------------------------------------------
+# The same rules, asked early enough to act on (planning.md 16.6)
+# --------------------------------------------------------------------------
+
+
+def warn(words, start="apple", end="orbit", solution=("a", "b", "c", "d"), context=(), cap=3):
+    return warnings_for(
+        words,
+        start,
+        end,
+        solution,
+        context=list(context),
+        max_word_reuse=cap,
+        window=WINDOW,
+    )
+
+
+class TestSchedulingWarnings:
+    """`check` fails at export, which is correct and, on its own, useless: by
+    then thirty decisions are already made. These are the same three rules,
+    asked while the reviewer can still pick a different day."""
+
+    def test_a_clean_date_warns_about_nothing(self):
+        assert warn({"fresh", "words"}, context=[puzzle(1, "moon", "tide", "wxyz")]) == []
+
+    def test_a_word_over_the_cap_is_named_with_its_count(self):
+        context = [puzzle(i, f"s{i}", f"e{i}", ("river", "x", "y", "z")) for i in range(1, 4)]
+        problems = warn({"river"}, context=context)
+        assert len(problems) == 1
+        assert "river" in problems[0]
+        assert "would exceed" in problems[0]
+        assert "4 uses" in problems[0]
+
+    def test_a_word_about_to_reach_the_cap_is_flagged_before_it_breaks(self):
+        # The point of warning early is to be early. A word that only becomes a
+        # problem on the *next* schedule is worth seeing now.
+        context = [puzzle(i, f"s{i}", f"e{i}", ("river", "x", "y", "z")) for i in range(1, 3)]
+        assert "would reach" in warn({"river"}, context=context)[0]
+
+    def test_a_duplicate_endpoint_pair_names_the_day_it_clashes_with(self):
+        context = [puzzle(4, "apple", "orbit", ("p", "q", "r", "s"))]
+        problems = warn({"fresh"}, context=context)
+        assert any("2026-10-04" in p and "#4" in p for p in problems)
+
+    def test_the_pair_is_caught_in_either_direction(self):
+        context = [puzzle(4, "orbit", "apple", ("p", "q", "r", "s"))]
+        assert warn({"fresh"}, context=context)
+
+    def test_a_repeated_chain_is_caught_under_different_endpoints(self):
+        context = [puzzle(5, "zzz", "yyy", ("a", "b", "c", "d"))]
+        problems = warn({"fresh"}, context=context)
+        assert any("this exact chain" in p for p in problems)
+
+    def test_it_warns_and_never_raises(self):
+        # Export keeps the hard gate. This is the thing that stops it firing,
+        # so it must not itself become a gate.
+        context = [puzzle(i, "apple", "orbit", ("a", "b", "c", "d")) for i in range(1, 6)]
+        assert len(warn({"a", "b"}, context=context)) >= 2
+
+    def test_an_empty_archive_warns_about_nothing(self):
+        assert warn({"anything"}) == []
+
+    def test_at_most_five_pressured_words_are_listed(self):
+        # A wall of warnings is a warning nobody reads.
+        words = [f"w{i}" for i in range(20)]
+        context = [puzzle(i, f"s{i}", f"e{i}", ("x", "y", "z", "q"), extra=words) for i in range(1, 5)]
+        assert len(warn(set(words), context=context)) <= 5

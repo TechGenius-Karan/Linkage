@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import random
 import statistics
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -40,8 +40,14 @@ def _load_graph(cfg: Config) -> nx.Graph:
     return graph
 
 
-def _candidate_from_dict(row: dict) -> Candidate:
-    """Rehydrate a candidate from candidates.json for export."""
+def _candidate_from_dict(row: dict, bank: tuple[str, ...] | None = None) -> Candidate:
+    """Rehydrate a candidate from candidates.json for export.
+
+    `bank` overrides the generated one, which is how a hand-refined puzzle
+    ships (planning.md 16.4): the swaps live on the decision and are replayed
+    here, because `candidates.json` is keyed by a hash that covers the bank and
+    rewriting it in place would orphan the decision holding the edit.
+    """
     path = ChainPath(
         start=row["start"],
         end=row["end"],
@@ -51,7 +57,7 @@ def _candidate_from_dict(row: dict) -> Candidate:
     )
     return Candidate(
         path=path,
-        bank=tuple(row["bank"]),
+        bank=bank if bank is not None else tuple(row["bank"]),
         quality=row["quality"],
         score_breakdown=tuple(sorted(row.get("scores", {}).items())),
     )
@@ -619,12 +625,24 @@ def export(
 
     rows = {r["hash"]: r for r in exporters.read_candidates(cfg.candidates_path)}
     decisions = exporters.read_decisions(cfg.decisions_path)
-    approved = [
-        _candidate_from_dict(rows[h])
-        for h, verdict in sorted(decisions.items())
-        if verdict.verdict == review_ui.ACCEPT and h in rows
+
+    def hydrate(hash_: str) -> Candidate:
+        row = rows[hash_]
+        return _candidate_from_dict(
+            row, bank=decisions_mod.apply_edits(row["bank"], decisions[hash_].bank_edits)
+        )
+
+    accepted = [
+        h
+        for h, decision in sorted(decisions.items())
+        if decision.verdict == review_ui.ACCEPT and h in rows
     ]
-    if not approved:
+    # A date on a decision is a reviewer's explicit choice (planning.md 16.2).
+    # Everything else is the undated pool, and auto-selection fills around the
+    # pins -- so the old behaviour is now the *proposal*, not the verdict.
+    pinned = {decisions[h].date: hydrate(h) for h in accepted if decisions[h].is_scheduled}
+    free = [hydrate(h) for h in accepted if not decisions[h].is_scheduled]
+    if not accepted:
         typer.secho("Nothing approved yet. Run `linkage review`.", fg=typer.colors.RED)
         raise typer.Exit(1)
 
@@ -638,30 +656,63 @@ def export(
         typer.echo("  empty -- this is the first batch")
     typer.echo(f"  next slot: #{first_id} on {first_date}")
 
-    approved.sort(key=lambda c: (-c.quality, c.content_hash()))
+    # The slot run. `date == epoch + (id - 1)` days is the archive's one hard
+    # invariant, so the batch is a contiguous stretch of days and a scheduled
+    # puzzle occupies one of them -- it does not get an arbitrary date.
+    slot_dates = [
+        (date.fromisoformat(first_date) + timedelta(days=i)).isoformat()
+        for i in range(batch)
+    ]
+    stale = sorted(d for d in pinned if d < first_date)
+    if stale:
+        typer.secho(
+            f"  {len(stale)} scheduled date(s) already covered by the archive "
+            f"({', '.join(stale[:3])}). Unschedule them.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+    in_window = {d: c for d, c in pinned.items() if d in set(slot_dates)}
+    beyond = sorted(d for d in pinned if d > slot_dates[-1])
+    if beyond:
+        # Silently ignoring these would look identical to shipping them.
+        typer.secho(
+            f"  {len(beyond)} scheduled date(s) sit past this batch of {batch} "
+            f"({', '.join(beyond[:3])}). Raise --count to reach them.",
+            fg=typer.colors.YELLOW,
+        )
+    if in_window:
+        typer.echo(f"  {len(in_window)} date(s) pinned by hand in this batch")
+
+    approved_sorted = sorted(free, key=lambda c: (-c.quality, c.content_hash()))
 
     # Enforce the corpus rules while choosing, rather than assembling a batch
     # and rejecting it (planning.md 7.7.1). `already_shipped` makes the cap
-    # span the whole archive, so month two cannot reuse month one's words.
+    # span the whole archive, so month two cannot reuse month one's words --
+    # and the pins go in too, because a hand-picked puzzle spends word budget
+    # exactly like an auto-selected one.
+    pins_as_puzzles = exporters.assign_dates(
+        [in_window[d] for d in sorted(in_window)], first_date, hint_count=cfg.hint_count
+    )
     _echo_header(f"Diversity selection (batch of {batch}, max {cfg.max_word_reuse} uses per {cfg.word_reuse_window} puzzles)")
     selected, selection = corpus.select_diverse(
-        approved,
-        target=batch,
+        approved_sorted,
+        target=batch - len(in_window),
         max_word_reuse=cfg.max_word_reuse,
         window=cfg.word_reuse_window,
-        already_shipped=existing,
+        already_shipped=[*existing, *pins_as_puzzles],
     )
     typer.echo(f"  {selection.summary()}")
-    if not selected:
+    if not selected and not in_window:
         typer.secho(
             "  Nothing new fits. Approve more candidates, or raise "
             "MAX_WORD_REUSE.",
             fg=typer.colors.RED,
         )
         raise typer.Exit(1)
-    if selection.selected < batch:
+    if selection.selected + len(in_window) < batch:
         typer.secho(
-            f"  Short batch: {selection.selected} of {batch}. Shipping anyway.",
+            f"  Short batch: {selection.selected + len(in_window)} of {batch}. "
+            "Shipping anyway.",
             fg=typer.colors.YELLOW,
         )
 
@@ -675,9 +726,34 @@ def export(
         random.Random(cfg.seed).shuffle(rest)
         ordered = launch + rest
 
+    # Walk the run in order: a pinned date takes its puzzle, every other day
+    # draws from the auto-selection. Stopping at the first day neither can fill
+    # is what keeps the run unbroken -- a gap would break `date == epoch + id - 1`
+    # for every puzzle after it.
+    fill = list(ordered)
+    batched: list[Candidate] = []
+    for slot in slot_dates:
+        if slot in in_window:
+            batched.append(in_window[slot])
+        elif fill:
+            batched.append(fill.pop(0))
+        else:
+            break
+    unreachable = sorted(d for d in in_window if d > slot_dates[len(batched) - 1]) if batched else sorted(in_window)
+    if unreachable:
+        typer.secho(
+            f"  {len(unreachable)} pinned date(s) sit past a gap and will not "
+            f"ship ({', '.join(unreachable[:3])}). Approve more, or move them.",
+            fg=typer.colors.YELLOW,
+        )
+
     fresh = exporters.assign_dates(
-        ordered, first_date, first_id=first_id, hint_count=cfg.hint_count
+        batched, first_date, first_id=first_id, hint_count=cfg.hint_count
     )
+    landed = {p.date: p for p in fresh}
+    for slot, candidate in in_window.items():
+        if slot in landed and landed[slot].solution != candidate.path.steps:
+            raise RuntimeError(f"scheduling bug: {slot} did not get its pinned puzzle")
     archive = existing + fresh
 
     _echo_header("Corpus quality control")

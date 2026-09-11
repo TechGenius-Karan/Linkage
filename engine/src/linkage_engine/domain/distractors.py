@@ -15,7 +15,7 @@ this is the one property the whole game rests on.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, Sequence
 
 import networkx as nx
 
@@ -275,3 +275,101 @@ class DistractorSelector:
         if len(bank) < self.cfg.bank_size_min:
             return None
         return tuple(sorted(bank))
+
+
+# --------------------------------------------------------------------------
+# Refining a bank by hand (planning.md 16.4)
+# --------------------------------------------------------------------------
+
+
+class SwapRefused(ValueError):
+    """The engine's veto on a hand edit. Carries the reason, for the reviewer.
+
+    Round 1's finding was that banks came out uniformly too hard, so a reviewer
+    needs to be able to soften one. What they must *not* be able to do -- even
+    deliberately -- is break the uniqueness the whole game rests on. Hence a
+    veto rather than a warning: a refused swap leaves the puzzle untouched.
+    """
+
+
+def swap_decoy(
+    cfg: Config,
+    graph: nx.Graph,
+    stemmer: Stemmer,
+    path: Path,
+    bank: Sequence[str],
+    removed: str,
+    added: str,
+) -> tuple[str, ...]:
+    """Replace one decoy, or refuse with the reason why.
+
+    Every rule `build_bank` applies while choosing is re-applied here, because
+    a bank edited by hand has to satisfy exactly what a generated one does.
+    Only *decoys* are swappable -- removing a solution word would not refine
+    the puzzle, it would delete it.
+    """
+    if removed == added:
+        raise SwapRefused("that swap changes nothing")
+    if removed not in bank:
+        raise SwapRefused(f"{removed!r} is not in the bank")
+    if removed in path.steps:
+        raise SwapRefused(f"{removed!r} is part of the solution, not a decoy")
+    if added in bank:
+        raise SwapRefused(f"{added!r} is already in the bank")
+    if added in path.nodes:
+        raise SwapRefused(f"{added!r} is already in the puzzle")
+    if added not in graph:
+        raise SwapRefused(f"{added!r} is not in the graph -- it cannot ship as a tile")
+
+    rest = {w for w in bank if w != removed}
+    # Endpoints included: they sit on screen for the whole game, so a decoy
+    # that rhymes with one is the most visible kind of sloppiness there is.
+    frozen = frozenset(rest | {path.start, path.end})
+    if shares_stem(stemmer, added, frozen):
+        raise SwapRefused(f"{added!r} shares a stem with a word already on screen")
+    if overlaps_substring(added, frozen):
+        raise SwapRefused(f"{added!r} contains, or sits inside, another word on screen")
+
+    proposed = rest | {added}
+    if not is_uniquely_solvable(graph, path.start, path.end, proposed, cfg.chain_length):
+        raise SwapRefused(
+            f"{added!r} would give the puzzle a second valid solution"
+        )
+    return tuple(sorted(proposed))
+
+
+def safe_swaps(
+    cfg: Config,
+    graph: nx.Graph,
+    stemmer: Stemmer,
+    path: Path,
+    bank: Sequence[str],
+    removed: str,
+    limit: int = 8,
+    considered: int = 60,
+) -> list[ScoredWord]:
+    """Replacements for `removed` that the engine would actually accept.
+
+    Offering these is what makes the swap usable: without them a reviewer types
+    a word and hopes, and most guesses are refused for reasons they cannot see.
+
+    Drawn in `consideration_order`, so the suggestions span the temptingness
+    bands rather than all being near-misses -- the same texture argument that
+    `DISTRACTOR_MIX` exists for. Each carries its temptingness, so a reviewer
+    softening a bank can see which way they are moving it.
+
+    `considered` caps the work: each trial runs the full uniqueness proof at
+    roughly 60ms, so the ceiling is a few seconds for one reviewer on one
+    machine, and stopping early costs nothing but a shorter menu.
+    """
+    selector = DistractorSelector(cfg, stemmer)
+    found: list[ScoredWord] = []
+    for candidate in selector.consideration_order(selector.pool(graph, path))[:considered]:
+        if len(found) >= limit:
+            break
+        try:
+            swap_decoy(cfg, graph, stemmer, path, bank, removed, candidate.word)
+        except SwapRefused:
+            continue
+        found.append(candidate)
+    return found

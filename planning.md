@@ -1069,18 +1069,27 @@ its own — it replaces the review screen the reviewer could never actually see.
 
 **6b — Refine by swapping**
 
-- [ ] Swap a bank word; the engine re-runs the uniqueness proof against the real
+- [x] Swap a bank word; the engine re-runs the uniqueness proof against the real
       graph and **refuses the swap if it breaks** (§16.4).
-- [ ] Record swaps on the decision, so an edited puzzle is auditable.
+- [x] Record swaps on the decision, so an edited puzzle is auditable.
+- [x] **Added, not planned:** a `swaps` endpoint offering replacements the engine
+      has *already* proved. Without it a reviewer types a word and hopes — most
+      guesses are refused for reasons invisible from outside, which makes the
+      feature technically present and practically unusable.
+- [x] **Verify:** the veto tested from both sides — a swap that would create a
+      second solution is refused and leaves the puzzle untouched in the queue;
+      a safe one ships with the edited bank.
 
 **6c — Pool and schedule**
 
-- [ ] Approved-but-undated pool. Approving records taste; it schedules nothing.
-- [ ] `export` reads `date` from decisions rather than assigning every date
+- [x] Approved-but-undated pool. Approving records taste; it schedules nothing.
+- [x] `export` reads `date` from decisions rather than assigning every date
       itself; the existing auto-assignment becomes a proposal the reviewer can
       override.
-- [ ] Corpus QC (§7.7.1) surfaced **as a date is chosen**, not only at export.
-- [ ] Unschedule, and unapprove.
+- [x] Corpus QC (§7.7.1) surfaced **as a date is chosen**, not only at export.
+- [x] Unschedule, and unapprove.
+- [x] **Verify:** a pinned puzzle lands on its day, auto-selection fills around
+      it, and `date == epoch + (id - 1)` still holds for every puzzle in the run.
 
 ### Phase 7 — Global Stats *(deferred, optional)*
 
@@ -1372,16 +1381,26 @@ engine/src/linkage_engine/
   domain/decisions.py    TIER 2  the state machine. Pure, no I/O, fully tested.
 
 web/src/admin/           lazy-loaded; dropped from the production build
-  AdminApp · Queue · Pool · Schedule · adminClient.ts
+  AdminApp      queue / pool tabs; no router for two screens
+  ReviewCard    one candidate, with its links clickable
+  BankEditor    swap a decoy, under the engine's veto
+  PoolPage      the undated pool and the run of slots
+  adminClient.ts
 ```
 
 `http.server` from the standard library, not Flask or FastAPI. One reviewer, on
 one machine, over localhost — a framework would be a dependency earning nothing.
 
-Seven endpoints: `queue`, `approve`, `reject`, `swap`, `pool`, `schedule`,
-`unschedule`.
+Nine endpoints: `queue`, `approve`, `reject`, `undo`, `swap`, `swaps`,
+`pool`, `schedule`, `unschedule`.
 
-> **No health dashboard.** An earlier draft had an eighth endpoint reporting
+Two more than the original seven, and both earned their place. `undo` because
+a reviewer is one keystroke from a wrong verdict and hesitates over every click
+without a way back. `swaps` because a swap the reviewer cannot aim is not a
+feature — it offers the replacements the engine has already proved, so the menu
+never leads somewhere refused (§16.4).
+
+> **No health dashboard.** An earlier draft had another endpoint reporting
 > archive coverage and word-reuse pressure. Cut: the number that actually
 > matters is whether *this* puzzle on *this* date breaks a rule, and that
 > belongs beside the date picker (§16.6), not on a separate screen nobody opens.
@@ -1410,6 +1429,37 @@ hard, because 95% of every bank was a decoy wired to one side of a solution
 slot (§7.7.3). `DISTRACTOR_MIX` addresses that in generation; swapping
 addresses the ones that still slip through.
 
+#### 16.4.1 Where an edit is stored, and why not on the candidate
+
+The obvious place to put a swapped bank is `candidates.json`, next to the bank
+it replaces. That is wrong, and the reason is worth writing down because it is
+not visible from the code that reads it.
+
+`Candidate.content_hash()` covers **the bank as a set**. It has to: the hash is
+what lets `generate` run again without discarding a judgement a person already
+made, and a re-run reshuffles the bank. So editing the bank in place changes
+the hash, and the decision holding that edit is instantly orphaned — the tool
+would lose the reviewer's work as a side effect of recording it.
+
+So the swap lives on the **decision**, as an ordered `bankEdits` list, and is
+replayed over the generated bank on every read. The candidate file is never
+rewritten. This also gets auditability for nothing: the edit is a record of
+what a person changed, not a silent overwrite of what the generator produced.
+
+#### 16.4.2 A swap is a preview until the puzzle is approved
+
+A swap could reasonably be its own write — edit now, decide later. It is not,
+because that would need a fourth state (*edited, undecided*) in a machine whose
+smallness is the point.
+
+Instead `swap` proves the edit and returns the resulting bank **without writing
+anything**, the UI holds the pending edits, and `approve` carries them. A swap
+is therefore an argument about a puzzle you are about to accept, which is what
+it actually is — nobody hand-tunes the bank of a puzzle they are going to
+reject. `approve` re-proves the edits rather than trusting what the client
+sends: the check costs 60ms, and this is the one property the whole game rests
+on.
+
 ### 16.5 The admin must never ship
 
 There is no server-side gate, so a deployed admin is an open door onto the
@@ -1431,6 +1481,24 @@ The same checks run when a date is chosen, against the archive plus everything
 already scheduled — so the reviewer sees *"`river` would appear 6 times in 120
 puzzles"* while they can still pick a different day. Export keeps its hard gate;
 this is the warning that makes the gate rarely fire.
+
+### 16.7 Scheduling picks a slot, not a date
+
+`date == EPOCH_DATE + (id - 1)` days is the archive's one hard invariant, and
+the golden test asserts it. A free-form date picker quietly contradicts it: a
+reviewer choosing the 5th while the 3rd is empty has asked for a gap, and a gap
+renumbers every puzzle after it or breaks the invariant outright.
+
+So the pool offers a **contiguous run of slots** — the next `BATCH_SIZE` days
+from wherever the archive ends — and scheduling claims one. Export then walks
+that run in order: a pinned day takes its puzzle, every other day draws from
+auto-selection, and the run **stops at the first day neither can fill**. A pin
+sitting past that point is reported rather than shipped, because moving it
+forward to close the gap would put a puzzle on a date the reviewer did not
+choose, and dropping it silently is indistinguishable from having shipped it.
+
+Auto-assignment is therefore still doing almost all the work. The difference is
+that it now fills *around* human choices instead of overriding them.
 
 ---
 

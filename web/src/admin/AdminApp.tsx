@@ -12,9 +12,11 @@ import {
   fetchQueue,
   rejectPuzzle,
   undoPuzzle,
+  type BankEdit,
   type QueueCounts,
   type QueuePuzzle,
 } from './adminClient';
+import { PoolPage } from './PoolPage';
 import { ReviewCard } from './ReviewCard';
 
 type Load =
@@ -22,7 +24,11 @@ type Load =
   | { kind: 'ready'; puzzles: QueuePuzzle[]; counts: QueueCounts }
   | { kind: 'error'; message: string };
 
+/** Two screens. A router for two screens would be a dependency earning nothing. */
+type View = 'queue' | 'pool';
+
 export function AdminApp() {
+  const [view, setView] = useState<View>('queue');
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,12 +61,16 @@ export function AdminApp() {
   };
 
   if (load.kind === 'loading') {
-    return <Shell><p className="text-ink-muted">Loading the queue…</p></Shell>;
+    return (
+      <Shell view={view} onView={setView}>
+        <p className="text-ink-muted">Loading the queue…</p>
+      </Shell>
+    );
   }
 
   if (load.kind === 'error') {
     return (
-      <Shell>
+      <Shell view={view} onView={setView}>
         <p className="text-[15px] text-heart">{load.message}</p>
         <pre className="overflow-x-auto rounded-lg border border-rule bg-surface p-3 text-xs">
           cd engine{'\n'}python -m linkage_engine admin
@@ -72,7 +82,10 @@ export function AdminApp() {
   const current = load.puzzles[0];
 
   return (
-    <Shell counts={load.counts}>
+    <Shell counts={load.counts} view={view} onView={setView}>
+      {view === 'pool' && <PoolPage onChanged={() => void refresh()} />}
+      {view === 'queue' && (
+        <>
       {error !== null && (
         <p className="rounded-lg border border-heart bg-heart/10 px-3 py-2 text-[13px] text-heart">
           {error}
@@ -106,8 +119,8 @@ export function AdminApp() {
           key={current.hash}
           puzzle={current}
           busy={busy}
-          onApprove={() =>
-            void act(() => approvePuzzle(current.hash), {
+          onApprove={(edits: BankEdit[]) =>
+            void act(() => approvePuzzle(current.hash, edits), {
               hash: current.hash,
               label: `Approved ${current.start} → ${current.end}`,
             })
@@ -120,11 +133,23 @@ export function AdminApp() {
           }
         />
       )}
+        </>
+      )}
     </Shell>
   );
 }
 
-function Shell({ children, counts }: { children: React.ReactNode; counts?: QueueCounts }) {
+function Shell({
+  children,
+  counts,
+  view,
+  onView,
+}: {
+  children: React.ReactNode;
+  counts?: QueueCounts;
+  view: View;
+  onView: (view: View) => void;
+}) {
   return (
     <div className="flex min-h-screen justify-center px-4 py-8">
       <div className="flex w-full max-w-xl flex-col gap-5">
@@ -132,10 +157,28 @@ function Shell({ children, counts }: { children: React.ReactNode; counts?: Queue
           <h1 className="font-word text-xl font-semibold">Linkage review</h1>
           {counts !== undefined && (
             <span className="text-xs text-ink-muted">
-              {counts.pending} pending · {counts.approved} approved · {counts.rejected} rejected
+              {counts.pending} pending · {counts.approved} approved · {counts.scheduled} scheduled ·{' '}
+              {counts.rejected} rejected
             </span>
           )}
         </header>
+        <nav className="flex gap-1 border-b border-rule">
+          {(['queue', 'pool'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => onView(tab)}
+              aria-current={view === tab ? 'page' : undefined}
+              className={`ring-focus -mb-px rounded-t-md border-b-2 px-3 py-1.5 text-[13px] capitalize ${
+                view === tab
+                  ? 'border-accent font-semibold text-accent'
+                  : 'border-transparent text-ink-muted hover:text-ink'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
         {children}
       </div>
     </div>

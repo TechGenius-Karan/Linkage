@@ -11,18 +11,21 @@
  */
 
 import { useState } from 'react';
-import type { QueuePuzzle } from './adminClient';
+import type { BankEdit, QueuePuzzle } from './adminClient';
+import { BankEditor } from './BankEditor';
 
 export interface ReviewCardProps {
   puzzle: QueuePuzzle;
   busy: boolean;
-  onApprove: () => void;
+  onApprove: (edits: BankEdit[]) => void;
   onReject: (reason: string, badLink: number | null) => void;
 }
 
 export function ReviewCard({ puzzle, busy, onApprove, onReject }: ReviewCardProps) {
   const [reason, setReason] = useState('');
   const [badLink, setBadLink] = useState<number | null>(null);
+  /** Hand swaps, held here until the puzzle is approved (planning.md 16.4). */
+  const [edits, setEdits] = useState<BankEdit[]>([]);
 
   const canReject = reason.trim().length > 0;
 
@@ -70,21 +73,14 @@ export function ReviewCard({ puzzle, busy, onApprove, onReject }: ReviewCardProp
         </ol>
       </div>
 
-      <div>
-        <div className="mb-1.5 text-xs font-medium text-ink-muted">
-          Decoys ({puzzle.decoys.length})
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {puzzle.decoys.map((word) => (
-            <span
-              key={word}
-              className="rounded-md border border-rule px-2 py-1 font-word text-[13px]"
-            >
-              {word}
-            </span>
-          ))}
-        </div>
-      </div>
+      <BankEditor
+        hash={puzzle.hash}
+        bank={puzzle.bank}
+        solution={puzzle.solution}
+        edits={edits}
+        onChange={setEdits}
+        disabled={busy}
+      />
 
       <div className="flex flex-col gap-2 border-t border-rule pt-4">
         <textarea
@@ -97,7 +93,7 @@ export function ReviewCard({ puzzle, busy, onApprove, onReject }: ReviewCardProp
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onApprove}
+            onClick={() => onApprove(edits)}
             disabled={busy}
             className="ring-focus rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-ground disabled:opacity-40"
           >
@@ -119,7 +115,8 @@ export function ReviewCard({ puzzle, busy, onApprove, onReject }: ReviewCardProp
           )}
         </div>
         <p className="text-xs text-ink-muted">
-          Approving records taste. It does not schedule anything.
+          Approving records taste. It does not schedule anything
+          {edits.length > 0 ? ' — the swaps are stored with it' : ''}.
         </p>
       </div>
     </article>

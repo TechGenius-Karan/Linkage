@@ -16,6 +16,8 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable
 
+import networkx as nx
+
 from ..config import Config
 from . import handlers
 
@@ -26,6 +28,11 @@ Route = Callable[..., dict]
 
 class AdminHandler(BaseHTTPRequestHandler):
     cfg: Config = Config()
+    #: Loaded on first use, not at startup (planning.md 16.4). Only the swap
+    #: routes need the graph, so a missing or stale one must not stop a
+    #: reviewer approving, rejecting and scheduling -- it should cost them
+    #: exactly the one feature that cannot work without it.
+    _graph: nx.Graph | None = None
 
     server_version = "linkage-admin"
     #: Suppress the default per-request stderr line -- it drowns real output.
@@ -33,6 +40,19 @@ class AdminHandler(BaseHTTPRequestHandler):
         return
 
     # -- plumbing ---------------------------------------------------------
+
+    def graph(self) -> nx.Graph:
+        cls = type(self)
+        if cls._graph is None:
+            from ..data import graph_store
+
+            if not self.cfg.graph_path.exists():
+                raise handlers.BadRequest(
+                    f"no graph at {self.cfg.graph_path} -- swapping needs one. "
+                    "Run `linkage build-graph`."
+                )
+            cls._graph = graph_store.load(self.cfg.graph_path)
+        return cls._graph
 
     def _send(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -71,8 +91,11 @@ class AdminHandler(BaseHTTPRequestHandler):
     # -- routes -----------------------------------------------------------
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path.startswith("/api/admin/queue"):
+        path = self.path.split("?", 1)[0]
+        if path == "/api/admin/queue":
             self._run(lambda: handlers.queue(self.cfg))
+        elif path == "/api/admin/pool":
+            self._run(lambda: handlers.pool(self.cfg))
         else:
             self._send(404, {"error": f"no route for GET {self.path}"})
 
@@ -90,8 +113,18 @@ class AdminHandler(BaseHTTPRequestHandler):
                 raise handlers.BadRequest(f"{key} is required")
             return value
 
+        def edits() -> tuple:
+            return handlers.read_edits(body.get("edits"))
+
         if path == "/api/admin/approve":
-            self._run(lambda: handlers.approve(self.cfg, need("hash")))
+            self._run(
+                lambda: handlers.approve(
+                    self.cfg,
+                    need("hash"),
+                    edits=edits(),
+                    graph=self.graph() if body.get("edits") else None,
+                )
+            )
         elif path == "/api/admin/reject":
             self._run(
                 lambda: handlers.reject(
@@ -100,10 +133,25 @@ class AdminHandler(BaseHTTPRequestHandler):
             )
         elif path == "/api/admin/undo":
             self._run(lambda: handlers.undo(self.cfg, need("hash")))
+        elif path == "/api/admin/swap":
+            self._run(lambda: handlers.swap(self.cfg, self.graph(), need("hash"), edits()))
+        elif path == "/api/admin/swaps":
+            # A read, served over POST, because it takes the reviewer's pending
+            # and still-unsaved edits -- a list of pairs that a query string
+            # has no natural encoding for. It writes nothing.
+            self._run(
+                lambda: handlers.swap_options(
+                    self.cfg, self.graph(), need("hash"), need("removed"), edits()
+                )
+            )
+        elif path == "/api/admin/schedule":
+            self._run(lambda: handlers.schedule(self.cfg, need("hash"), need("date")))
+        elif path == "/api/admin/unschedule":
+            self._run(lambda: handlers.unschedule(self.cfg, need("hash")))
         else:
             self._send(404, {"error": f"no route for POST {self.path}"})
 
 
 def make_server(cfg: Config, host: str = "127.0.0.1", port: int = 8787) -> ThreadingHTTPServer:
-    handler = type("BoundAdminHandler", (AdminHandler,), {"cfg": cfg})
+    handler = type("BoundAdminHandler", (AdminHandler,), {"cfg": cfg, "_graph": None})
     return ThreadingHTTPServer((host, port), handler)
