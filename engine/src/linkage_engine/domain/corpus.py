@@ -262,3 +262,71 @@ def check(puzzles: Sequence[Puzzle], max_word_reuse: int, window: int) -> Corpus
         distinct_words=len(lifetime),
         most_reused=tuple(lifetime.most_common(10)),
     )
+
+
+# --------------------------------------------------------------------------
+# The same rules, as a warning at scheduling time (planning.md 16.6)
+# --------------------------------------------------------------------------
+
+
+def warnings_for(
+    words: Iterable[str],
+    start: str,
+    end: str,
+    solution: Sequence[str],
+    *,
+    context: Sequence[Puzzle],
+    max_word_reuse: int,
+    window: int,
+) -> list[str]:
+    """What `check` would complain about, asked early enough to act on.
+
+    `check` runs at export and fails loudly, which is correct and, on its own,
+    useless: by then thirty decisions are already made and "the archive is bad"
+    is not an instruction anybody can follow. These are the same three rules,
+    evaluated against the archive plus everything already scheduled, so the
+    reviewer sees the problem while they can still pick a different day.
+
+    Warnings, never a veto. Export keeps the hard gate; this is what stops it
+    firing.
+
+    ponytail: word counts are taken over the whole `context` tail rather than a
+    window positioned at the proposed date, so a word is occasionally reported
+    as pressured when the real window would have let it through. An
+    over-eager warning costs a second look; the exact count still gates at
+    export. Position the window here if the false alarms ever get annoying.
+    """
+    problems: list[str] = []
+    recent = sorted(context, key=lambda p: p.date)[-(window - 1) :] if window > 1 else []
+
+    counts: Counter[str] = Counter()
+    for puzzle in recent:
+        counts.update(visible_words(puzzle))
+
+    pressured = sorted(
+        (w for w in set(words) if counts[w] >= max_word_reuse - 1),
+        key=lambda w: (-counts[w], w),
+    )
+    for word in pressured[:5]:
+        seen = counts[word]
+        verb = "would exceed" if seen >= max_word_reuse else "would reach"
+        problems.append(
+            f"{word!r} {verb} the cap: {seen + 1} uses in {window} puzzles "
+            f"(max {max_word_reuse})"
+        )
+
+    pair = frozenset({start, end})
+    clash = next((p for p in context if frozenset({p.start, p.end}) == pair), None)
+    if clash is not None:
+        problems.append(
+            f"{start} / {end} already ship together on {clash.date} (#{clash.id})"
+        )
+
+    chain = tuple(solution)
+    repeat = next((p for p in context if p.solution == chain), None)
+    if repeat is not None:
+        problems.append(
+            f"this exact chain already ships on {repeat.date} (#{repeat.id})"
+        )
+
+    return problems

@@ -18,7 +18,7 @@ coupling as an open defect -- this module is where it stops existing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Literal
+from typing import Literal, Sequence
 
 #: "accept" rather than "approve" because that is the token `review.py` has
 #: always written; the admin UI says "Approve" on the button either way. A
@@ -134,6 +134,30 @@ def unapprove(decision: Decision) -> Decision:
     if decision.date is not None:
         raise DecisionError("unschedule it first -- it is on the calendar")
     return decision  # caller removes the entry; returned for a uniform signature
+
+
+def apply_edits(bank: Sequence[str], edits: Sequence[BankEdit]) -> tuple[str, ...]:
+    """Replay recorded swaps over a candidate's original bank (planning.md 16.4).
+
+    The edits live on the **decision**, never on the candidate, because
+    `Candidate.content_hash()` covers the bank as a set: rewriting the bank in
+    `candidates.json` would change the hash and orphan the very judgement the
+    swap was part of. So the generated puzzle stays exactly as generated, the
+    edit list is replayed on read, and the change stays auditable.
+
+    Sorted on the way out, like every other bank in this engine -- a bank whose
+    order depended on edit history would make the export non-deterministic.
+    """
+    current = list(bank)
+    for edit in edits:
+        if edit.removed not in current:
+            raise DecisionError(
+                f"cannot replay swap: {edit.removed!r} is not in the bank"
+            )
+        current[current.index(edit.removed)] = edit.added
+    if len(set(current)) != len(current):
+        raise DecisionError("replaying the swaps produced a duplicate bank word")
+    return tuple(sorted(current))
 
 
 def record_swap(decision: Decision, removed: str, added: str) -> Decision:

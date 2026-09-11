@@ -63,8 +63,9 @@ const post = <T,>(path: string, payload: object): Promise<T> =>
 
 export const fetchQueue = (): Promise<QueueResponse> => request('/api/admin/queue');
 
-export const approvePuzzle = (hash: string): Promise<unknown> =>
-  post('/api/admin/approve', { hash });
+/** `edits` carries any hand swaps; the server re-proves them before storing. */
+export const approvePuzzle = (hash: string, edits: BankEdit[] = []): Promise<unknown> =>
+  post('/api/admin/approve', edits.length > 0 ? { hash, edits } : { hash });
 
 /** `badLink` indexes `chain` links, 0..4. Optional, and far more useful than prose. */
 export const rejectPuzzle = (
@@ -74,3 +75,91 @@ export const rejectPuzzle = (
 ): Promise<unknown> => post('/api/admin/reject', { hash, reason, badLink });
 
 export const undoPuzzle = (hash: string): Promise<unknown> => post('/api/admin/undo', { hash });
+
+// --------------------------------------------------------------------------
+// 6b — refining a bank (planning.md 16.4)
+// --------------------------------------------------------------------------
+
+/** One decoy traded for another. Held in the UI until the puzzle is approved. */
+export interface BankEdit {
+  removed: string;
+  added: string;
+}
+
+export interface SwapResponse {
+  hash: string;
+  bank: string[];
+  decoys: string[];
+  bankEdits: BankEdit[];
+}
+
+export interface SwapOption {
+  word: string;
+  /** How tempting the generator rates it. Lower is an easier bank. */
+  temptingness: number;
+  source: string;
+}
+
+/**
+ * Prove a set of edits without saving them.
+ *
+ * The engine holds a veto: a swap that would give the puzzle a second valid
+ * solution is refused with the reason, and the puzzle is left untouched. The
+ * edits stay in component state until `approvePuzzle` carries them.
+ */
+export const previewSwap = (hash: string, edits: BankEdit[]): Promise<SwapResponse> =>
+  post('/api/admin/swap', { hash, edits });
+
+/**
+ * Replacements the engine would actually accept.
+ *
+ * A POST because it takes edits the reviewer has not saved yet — a list of
+ * pairs a query string has no natural encoding for. It writes nothing.
+ */
+export const fetchSwapOptions = (
+  hash: string,
+  removed: string,
+  edits: BankEdit[],
+): Promise<{ options: SwapOption[] }> =>
+  post('/api/admin/swaps', { hash, removed, edits });
+
+// --------------------------------------------------------------------------
+// 6c — the pool, and choosing a date (planning.md 16.2, 16.6)
+// --------------------------------------------------------------------------
+
+export interface PoolPuzzle extends QueuePuzzle {
+  bankEdits: BankEdit[];
+  /** null while it is approved but undated — the state 16.2 exists to create. */
+  date: string | null;
+}
+
+export interface Slot {
+  date: string;
+  hash: string | null;
+}
+
+export interface PoolResponse {
+  scheduled: PoolPuzzle[];
+  pooled: PoolPuzzle[];
+  /** A contiguous run. `date == epoch + (id - 1)` days leaves no room for gaps. */
+  slots: Slot[];
+  archive: { count: number; lastDate: string | null; nextDate: string };
+}
+
+export const fetchPool = (): Promise<PoolResponse> => request('/api/admin/pool');
+
+/**
+ * Put an approved puzzle on a date.
+ *
+ * `warnings` is 16.6: the corpus checks that fail loudly at export, asked while
+ * the reviewer can still pick a different day. They never block.
+ */
+export const schedulePuzzle = (
+  hash: string,
+  date: string,
+): Promise<{ date: string; warnings: string[] }> =>
+  post('/api/admin/schedule', { hash, date });
+
+/** Back to the undated pool. Deliberately not the same act as unapproving. */
+export const unschedulePuzzle = (hash: string): Promise<unknown> =>
+  post('/api/admin/unschedule', { hash });

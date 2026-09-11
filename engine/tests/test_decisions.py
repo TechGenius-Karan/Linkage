@@ -207,3 +207,56 @@ class TestViews:
         }
         with pytest.raises(d.DecisionError, match="already holds"):
             d.taken_dates(clash)
+
+
+class TestApplyEdits:
+    """Replaying swaps over the generated bank (planning.md 16.4).
+
+    The edits live on the decision, never on the candidate, because
+    `Candidate.content_hash()` covers the bank -- rewriting it in place would
+    change the hash and orphan the judgement the swap was part of.
+    """
+
+    BANK = ("blue", "cloud", "nest", "ocean", "sky")
+
+    def test_no_edits_is_the_bank_itself(self):
+        assert d.apply_edits(self.BANK, ()) == self.BANK
+
+    def test_one_swap(self):
+        edits = (d.BankEdit(removed="nest", added="wave"),)
+        assert d.apply_edits(self.BANK, edits) == ("blue", "cloud", "ocean", "sky", "wave")
+
+    def test_swaps_replay_in_order(self):
+        edits = (
+            d.BankEdit(removed="nest", added="wave"),
+            d.BankEdit(removed="wave", added="tide"),
+        )
+        assert d.apply_edits(self.BANK, edits) == ("blue", "cloud", "ocean", "sky", "tide")
+
+    def test_the_size_never_changes(self):
+        edits = (d.BankEdit(removed="nest", added="wave"),)
+        assert len(d.apply_edits(self.BANK, edits)) == len(self.BANK)
+
+    def test_the_result_is_sorted(self):
+        # A bank whose order depended on edit history would make the export
+        # non-deterministic (planning.md 7.8).
+        edits = (d.BankEdit(removed="blue", added="zephyr"),)
+        out = d.apply_edits(self.BANK, edits)
+        assert list(out) == sorted(out)
+
+    def test_an_edit_that_no_longer_applies_is_loud(self):
+        # Silence here would ship a bank the reviewer never approved.
+        edits = (d.BankEdit(removed="absent", added="wave"),)
+        with pytest.raises(d.DecisionError, match="not in the bank"):
+            d.apply_edits(self.BANK, edits)
+
+    def test_a_replay_that_would_duplicate_a_word_is_loud(self):
+        edits = (d.BankEdit(removed="nest", added="sky"),)
+        with pytest.raises(d.DecisionError, match="duplicate"):
+            d.apply_edits(self.BANK, edits)
+
+    def test_an_approval_carries_its_edits(self):
+        edits = (d.BankEdit(removed="nest", added="wave"),)
+        decision = d.approve(TODAY, edits=edits)
+        assert decision.bank_edits == edits
+        assert d.from_json(d.to_json(decision)).bank_edits == edits
