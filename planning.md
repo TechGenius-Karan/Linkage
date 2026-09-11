@@ -26,7 +26,7 @@
 13. [Risk Register](#13-risk-register)
 14. [Explicitly Out of Scope](#14-explicitly-out-of-scope)
 15. [Problem → Solution Index](#15-problem--solution-index)
-16. [The Admin Tool](#16-the-admin-tool)
+16. [The Admin Tool](#16-the-admin-tool)  ·  *summary; full record in [`docs/admin.md`](docs/admin.md)*
 
 - [Appendix A — Tunable Constants](#appendix-a--tunable-constants)
 - [Appendix B — Decision Log](#appendix-b--decision-log)
@@ -38,6 +38,8 @@
 **Companion documents:** [`docs/engine.md`](docs/engine.md) holds §7, the generation
 internals. [`docs/design.md`](docs/design.md) holds the visual language — palette,
 type, spacing, motion — which §8 deliberately says nothing about.
+[`docs/admin.md`](docs/admin.md) holds the local review tool; §16 here keeps only
+the parts that constrain the game and the engine.
 
 ---
 
@@ -1164,6 +1166,16 @@ its own — it replaces the review screen the reviewer could never actually see.
 - [x] **Verify:** a pinned puzzle lands on its day, auto-selection fills around
       it, and `date == epoch + (id - 1)` still holds for every puzzle in the run.
 
+**6d / 6e / 6f — Round 2: review at volume**
+
+Proposed, not built. 33 verdicts in and 867 candidates left, the bottleneck
+moved from *care* to *throughput*. Five cards at a time, three screens, a
+sent-back lane, and hand-editing any word. **Planned in
+[`docs/admin.md`](docs/admin.md) §§9–14.** A reviewer may assert a link
+ConceptNet lacks — their judgement governs, and the assertion ships with the
+puzzle as evidence. The machine keeps exactly one veto, uniqueness, because
+that one is arithmetic rather than taste (`docs/admin.md` §11.3).
+
 ### Phase 7 — Global Stats *(deferred, optional)*
 
 - [ ] Cloudflare Worker + D1 per §9.4. Fire-and-forget from the client; failure must be invisible.
@@ -1384,194 +1396,71 @@ Completeness check: **every problem named anywhere in this document, and where i
 *A local tool for reviewing, refining and scheduling puzzles. Not part of the
 game, and never deployed.*
 
-### 16.1 Why it is local, and why that is not a compromise
+**The full design record is `docs/admin.md`** — moved out for the same reason
+§7 became `docs/engine.md`: it is long, it is only needed by whoever is working
+on the admin, and leaving it here made this document worse for everyone else.
 
-The obvious model is the one a sibling project uses: an admin page served from
-the public site, gated by a shared access code, backed by a database. Two facts
-make that actively wrong here rather than merely expensive.
+This section keeps only what constrains the *rest* of the project. Everything
+below is load-bearing somewhere outside `engine/admin/` and `web/src/admin/`.
 
-**Generation needs the graph, and the graph is 1.2 GB on one laptop.** A
-deployed admin could review a queue but never top it up, which is half a tool.
-Reviewing and generating belong on the same machine because generating has
-nowhere else to run.
+### 16.1 It is local-only, and it must never ship
 
-**Puzzles ship as files committed to git.** A verdict stored in a remote
-database would need a sync step before it reached a player. A local tool writes
-`engine/reviews/decisions.json` directly, and `git commit` *is* the publish
-step — which is already the workflow (§12).
+The admin binds to `127.0.0.1` and has **no authentication at all**. That is the
+design, not a shortcut — generation needs a 1.2 GB dataset that lives on one
+laptop, and puzzles ship as files committed to git, so there is nothing a
+deployed admin could do that a local one cannot.
 
-So the admin binds to `127.0.0.1` and has **no authentication at all**. That is
-not a shortcut. The safest gate is nothing exposed; an access code exists in
-the sibling project because its admin ships to a public URL, and ours must not.
+Because there is no gate, **a deployed copy would be an open door onto the
+answer key.** It is excluded from the production build by `import.meta.env.DEV`,
+and `web/scripts/assert-no-admin.mjs` runs on every `npm run build` and fails it
+if any admin string reaches `dist/`.
 
-> **Reviewing from a phone:** `--host` exposes it on the local network, the
-> same way the dev server already is. Anyone on that network can then open it.
-> There is nothing behind it but puzzle answers, and it is a home network — but
-> it is a deliberate choice each time, not a default.
+> **If you touch `web/src/admin/`, or how `main.tsx` excludes it, verify that
+> check still passes.** It is a build step rather than a test on purpose: a test
+> can be skipped, and a tree-shake that silently stops working produces a deploy
+> that looks completely normal.
 
-### 16.2 The state machine
+### 16.2 Approving is not scheduling
 
-```
-  candidate ──approve──► approved (undated) ──schedule──► scheduled (date + id)
-      │                       ▲     │                            │
-      └── reject ─────────────┘     └── unapprove                └── unschedule
-          (reason, badLink)
-```
+The decision record (`engine/decisions.json`) is keyed by content hash and is
+**durable human judgement, not a build artifact** — never regenerate it, and
+never overwrite an existing entry.
 
-**Approve records taste. Scheduling is a separate act.** Round 1's reviewer was
-explicit about this — an approval must not imply a shipping date — and §7.7.3
-lists the coupling as an open defect. The undated pool is where it gets fixed:
-`approved` carries `date: null` until somebody chooses one.
+An approval carries `date: null`. Scheduling is a separate act, because round 1
+was explicit that liking a puzzle must not imply a shipping date, and §7.7.3
+lists the coupling as an open defect.
 
-`decisions.json` is keyed by content hash, so re-running `generate` never
-discards a judgement already made (§7.7). The record widens from a bare verdict
-string to:
+`export` therefore reads `date` from decisions and **fills around those pins**
+with auto-selection, rather than assigning every date itself. The slots it fills
+are a contiguous run: `date == EPOCH_DATE + (id - 1)` days is this archive's one
+hard invariant (the golden test asserts it), so there is no such thing as a
+free-form date here — only a slot in an unbroken sequence.
 
-```jsonc
-{ "66898f743924cd8f": {
-    "verdict":   "approve",       // or "reject"
-    "reason":    null,            // free text, on reject
-    "badLink":   null,            // WHICH rung failed, 0..4
-    "bankEdits": [],              // swaps made in review, for auditing
-    "date":      null,            // scheduling, deliberately separate
-    "decidedAt": "2026-09-10" } }
-```
+### 16.3 Any reject must collect a reason
 
-`read_decisions` stays tolerant of the old `hash -> verdict` shape, so a
-`decisions.json` written by the terminal TUI still loads.
+Any surface that lets a reviewer reject a candidate must ask *why*, and ideally
+*which rung* failed. This was round 1's single most useful finding and it is
+what will eventually rebuild `QualityScorer` (§7.7.3) — a free-text reason
+cannot be aggregated across a hundred verdicts, but a rung index can.
 
-**`badLink` is the point of the whole exercise.** Round 1's single most useful
-finding was that *one* bad link ruined otherwise-good chains, and §7.7.3 records
-that letting a reviewer say which link failed is worth more than any heuristic
-guessed from here. A free-text reason cannot be aggregated; a rung index can.
+### 16.4 A hand edit can never break uniqueness
 
-### 16.3 Shape
+The reviewer can refine a puzzle by hand, and their judgement governs what
+reads as a real link — ConceptNet is frequently wrong and gets overruled. The
+one thing they cannot overrule is uniqueness: the engine re-runs the proof
+before accepting any edit and **refuses** anything that would admit a second
+valid arrangement. That is arithmetic over 7,920 arrangements rather than a
+matter of taste, and violating it means a player can be correct and be told
+they are wrong (§2.3).
 
-```
-engine/src/linkage_engine/
-  admin/server.py        TIER 1  stdlib http.server on 127.0.0.1
-  admin/handlers.py      TIER 1  parse -> domain call -> JSON
-  domain/decisions.py    TIER 2  the state machine. Pure, no I/O, fully tested.
+Edits are stored on the *decision* and replayed on read, never written back into
+`candidates.json`, because the content hash covers the bank and rewriting it
+would orphan the judgement that holds the edit.
 
-web/src/admin/           lazy-loaded; dropped from the production build
-  AdminApp      queue / pool tabs; no router for two screens
-  ReviewCard    one candidate, with its links clickable
-  BankEditor    swap a decoy, under the engine's veto
-  PoolPage      the undated pool and the run of slots
-  adminClient.ts
-```
+### 16.5 `linkage review` stays
 
-`http.server` from the standard library, not Flask or FastAPI. One reviewer, on
-one machine, over localhost — a framework would be a dependency earning nothing.
-
-Nine endpoints: `queue`, `approve`, `reject`, `undo`, `swap`, `swaps`,
-`pool`, `schedule`, `unschedule`.
-
-Two more than the original seven, and both earned their place. `undo` because
-a reviewer is one keystroke from a wrong verdict and hesitates over every click
-without a way back. `swaps` because a swap the reviewer cannot aim is not a
-feature — it offers the replacements the engine has already proved, so the menu
-never leads somewhere refused (§16.4).
-
-> **No health dashboard.** An earlier draft had another endpoint reporting
-> archive coverage and word-reuse pressure. Cut: the number that actually
-> matters is whether *this* puzzle on *this* date breaks a rule, and that
-> belongs beside the date picker (§16.6), not on a separate screen nobody opens.
-
-**`linkage review` — the terminal TUI — is kept, not replaced.** It works, it
-needs no browser, and it is the fallback when the server will not start.
-
-### 16.4 Refine means swapping a word, and the engine gets a veto
-
-A sibling project's Refine hands the reviewer's notes to a model that rewrites
-the puzzle. Nothing like that applies here: this generator is deterministic
-graph search, not a language model, and there is nothing to negotiate with.
-
-What transfers is the **shape** of the interaction, and one hard-won rule from
-that project's own source: *refine and reject must be different buttons.* They
-had merged them once, and asking for a fix could silently discard the puzzle.
-
-So: **swap one bank word for another, and the engine re-runs the uniqueness
-proof before accepting it.** If the swap would make a second solution possible,
-it is refused with the reason — the reviewer cannot break the one property the
-whole game rests on, even by hand. A rejected swap leaves the puzzle untouched
-and in the queue.
-
-This aims directly at round 1's other finding: the banks were uniformly too
-hard, because 95% of every bank was a decoy wired to one side of a solution
-slot (§7.7.3). `DISTRACTOR_MIX` addresses that in generation; swapping
-addresses the ones that still slip through.
-
-#### 16.4.1 Where an edit is stored, and why not on the candidate
-
-The obvious place to put a swapped bank is `candidates.json`, next to the bank
-it replaces. That is wrong, and the reason is worth writing down because it is
-not visible from the code that reads it.
-
-`Candidate.content_hash()` covers **the bank as a set**. It has to: the hash is
-what lets `generate` run again without discarding a judgement a person already
-made, and a re-run reshuffles the bank. So editing the bank in place changes
-the hash, and the decision holding that edit is instantly orphaned — the tool
-would lose the reviewer's work as a side effect of recording it.
-
-So the swap lives on the **decision**, as an ordered `bankEdits` list, and is
-replayed over the generated bank on every read. The candidate file is never
-rewritten. This also gets auditability for nothing: the edit is a record of
-what a person changed, not a silent overwrite of what the generator produced.
-
-#### 16.4.2 A swap is a preview until the puzzle is approved
-
-A swap could reasonably be its own write — edit now, decide later. It is not,
-because that would need a fourth state (*edited, undecided*) in a machine whose
-smallness is the point.
-
-Instead `swap` proves the edit and returns the resulting bank **without writing
-anything**, the UI holds the pending edits, and `approve` carries them. A swap
-is therefore an argument about a puzzle you are about to accept, which is what
-it actually is — nobody hand-tunes the bank of a puzzle they are going to
-reject. `approve` re-proves the edits rather than trusting what the client
-sends: the check costs 60ms, and this is the one property the whole game rests
-on.
-
-### 16.5 The admin must never ship
-
-There is no server-side gate, so a deployed admin is an open door onto the
-answer key. It is excluded from the production build by a flag, and
-**a test asserts the built `dist/` contains no admin code**.
-
-The test matters more than the flag. A build-time exclusion that silently stops
-working produces a deploy that looks completely normal, and nothing about the
-game would appear wrong.
-
-### 16.6 Corpus QC belongs beside the date picker
-
-§7.7.1 checks word reuse, duplicate endpoint pairs and repeated chains at
-export, and **fails loudly**. That is correct and, on its own, useless: by the
-time export runs, thirty decisions have already been made, and "the archive is
-bad" is not an instruction anybody can act on.
-
-The same checks run when a date is chosen, against the archive plus everything
-already scheduled — so the reviewer sees *"`river` would appear 6 times in 120
-puzzles"* while they can still pick a different day. Export keeps its hard gate;
-this is the warning that makes the gate rarely fire.
-
-### 16.7 Scheduling picks a slot, not a date
-
-`date == EPOCH_DATE + (id - 1)` days is the archive's one hard invariant, and
-the golden test asserts it. A free-form date picker quietly contradicts it: a
-reviewer choosing the 5th while the 3rd is empty has asked for a gap, and a gap
-renumbers every puzzle after it or breaks the invariant outright.
-
-So the pool offers a **contiguous run of slots** — the next `BATCH_SIZE` days
-from wherever the archive ends — and scheduling claims one. Export then walks
-that run in order: a pinned day takes its puzzle, every other day draws from
-auto-selection, and the run **stops at the first day neither can fill**. A pin
-sitting past that point is reported rather than shipped, because moving it
-forward to close the gap would put a puzzle on a date the reviewer did not
-choose, and dropping it silently is indistinguishable from having shipped it.
-
-Auto-assignment is therefore still doing almost all the work. The difference is
-that it now fills *around* human choices instead of overriding them.
+The terminal TUI is kept, not replaced. It works, it needs no browser, and it is
+the fallback when the server will not start.
 
 ---
 
