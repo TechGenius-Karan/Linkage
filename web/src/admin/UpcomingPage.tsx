@@ -8,13 +8,12 @@
  * One action: **return to pool**, which is `unschedule` — already distinct from
  * unapproving, because the reviewer still likes the puzzle and only wants a
  * different day for it.
- *
- * No new endpoint: `pool` already returns everything dated.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { fetchPool, unschedulePuzzle, type PoolResponse } from './adminClient';
 import { Ladder } from './Ladder';
+import { format } from './PoolPage';
 
 type Load =
   | { kind: 'loading' }
@@ -40,8 +39,8 @@ export function UpcomingPage({ onChanged }: UpcomingPageProps) {
 
   useEffect(() => void refresh(), [refresh]);
 
-  if (load.kind === 'loading') return <p className="text-ink-muted">Loading the calendar…</p>;
-  if (load.kind === 'error') return <p className="text-[15px] text-heart">{load.message}</p>;
+  if (load.kind === 'loading') return <p className="adm-empty">Loading the calendar…</p>;
+  if (load.kind === 'error') return <p className="adm-refusal">{load.message}</p>;
 
   const { scheduled, archive } = load.data;
 
@@ -60,36 +59,27 @@ export function UpcomingPage({ onChanged }: UpcomingPageProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="font-data text-[10px] text-ink-muted">
-        {archive.count} already shipped
-        {archive.lastDate !== null ? ` · through ${archive.lastDate}` : ''} · next slot{' '}
-        {archive.nextDate}
-      </p>
+    <div>
+      {error !== null && <p className="adm-refusal">{error}</p>}
 
-      {error !== null && (
-        <p className="rounded-lg border border-heart bg-heart/10 px-3 py-2 text-[13px] text-heart">
-          {error}
-        </p>
-      )}
+      <div className="adm-section">
+        <h2 className="adm-h2">On the calendar</h2>
+        <span className="adm-meta">
+          {archive.count > 0 ? `${archive.count} already shipped` : 'nothing shipped yet'}
+        </span>
+      </div>
 
       {scheduled.length === 0 ? (
-        <p className="py-8 text-center text-[15px] text-ink-muted">
-          Nothing on the calendar. Export will propose dates for whatever is in the pool.
+        <p className="adm-empty">
+          Nothing dated. Export will propose days for whatever is in the pool.
         </p>
       ) : (
-        <ol className="flex flex-col gap-1.5">
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {scheduled.map((puzzle) => (
-            <li
-              key={puzzle.hash}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rule bg-surface px-3 py-2"
-            >
-              <div className="flex flex-wrap items-center gap-3">
-                <time
-                  dateTime={puzzle.date ?? undefined}
-                  className="font-data text-xs tabular-nums text-ink-muted"
-                >
-                  {puzzle.date}
+            <li key={puzzle.hash} className="adm-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                <time dateTime={puzzle.date ?? undefined} className="adm-meta">
+                  {puzzle.date === null ? '' : format(puzzle.date)}
                 </time>
                 <Ladder
                   chain={puzzle.chain}
@@ -98,21 +88,18 @@ export function UpcomingPage({ onChanged }: UpcomingPageProps) {
                   edits={puzzle.bankEdits}
                 />
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                 {puzzle.manualEdges.length > 0 && (
-                  <span
-                    title="Ships a link the reviewer asserted, not ConceptNet"
-                    className="font-data text-[10px] text-accent"
-                  >
+                  <span className="adm-meta" title="Ships a link you asserted">
                     {puzzle.manualEdges.length} asserted
                   </span>
                 )}
                 <button
                   type="button"
+                  className="adm-btn adm-btn--quiet"
                   disabled={busy}
                   onClick={() => void release(puzzle.hash)}
                   title="Off the calendar, back to the approved pool"
-                  className="ring-focus rounded-md px-2 py-1 text-xs underline disabled:opacity-40"
                 >
                   Return to pool
                 </button>

@@ -1,32 +1,27 @@
 /**
- * A chain, sideways, with its weakest rung showing (docs/admin.md 10.2).
+ * A chain, sideways (docs/admin.md 10.2).
  *
- * The first version stacked six words vertically. That cost ~280px of height
- * for six short words, which is why only one puzzle fitted on screen — and one
- * puzzle at a time is what made 867 candidates feel unreachable.
+ * It used to print the edge weight between every pair of words, as a number
+ * and a bar. Both are gone. The reviewer is judging whether two words *read*
+ * as related to a person; the weight is a fact about ConceptNet's confidence,
+ * which the generator needs and a reader does not. Five numbers per card
+ * across five cards is twenty-five things to not look at.
  *
- * The bar under each link is not decoration. `MIN_EDGE_WEIGHT` gates a path on
- * its **weakest** edge because one weak link is what makes a chain feel unfair,
- * and 45 verdicts in, `badLink` says reviewers reject on exactly that — 13 of
- * 14 rejections named a rung in the opening half. So the weakest rung is drawn
- * loudest, and the eye lands where the decision is.
+ * What survives is the click target. `badLink` — which rung failed — is the
+ * most valuable thing this tool collects, so the connector stays as a rule you
+ * can press. Weight lives in the tooltip for the rare case anyone wants it.
  */
 
 import type { WordEdit } from './adminClient';
 
-/** Weights run ~2 (the floor) to ~12. An absolute scale, not per-chain: a
- *  uniformly weak chain should *look* weak, not be rescaled into looking fine. */
-const FULL_SCALE = 10;
-
 export interface LadderProps {
   chain: string[];
-  /** One per link; `chain[i] -> chain[i+1]`. */
   weights: number[];
   relations: string[][];
   /** Rungs resting on the reviewer's word rather than ConceptNet's. */
   asserted?: number[];
   badLink?: number | null;
-  onMarkLink?: (index: number) => void;
+  onMarkLink?: ((index: number) => void) | undefined;
   edits?: WordEdit[];
 }
 
@@ -39,30 +34,32 @@ export function Ladder({
   onMarkLink,
   edits = [],
 }: LadderProps) {
-  const weakest = weights.length > 0 ? Math.min(...weights) : 0;
   const changed = new Set(edits.map((e) => e.added));
 
   return (
-    <ol className="flex flex-wrap items-center gap-x-0.5 gap-y-1">
+    <ol className="adm-chain">
       {chain.map((word, i) => {
         const endpoint = i === 0 || i === chain.length - 1;
         return (
-          <li key={`${word}-${i}`} className="flex items-center gap-0.5">
+          <li key={`${word}-${i}`} className="adm-link">
             <span
-              className={`font-word text-[15px] leading-tight ${
-                endpoint ? 'font-semibold uppercase tracking-wide' : ''
-              } ${changed.has(word) ? 'underline decoration-accent decoration-dotted underline-offset-4' : ''}`}
+              className={[
+                'adm-word',
+                endpoint ? 'adm-word--end' : '',
+                changed.has(word) ? 'adm-word--edited' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               {word}
             </span>
             {i < chain.length - 1 && (
               <Rung
                 index={i}
-                weight={weights[i]}
-                relations={relations[i] ?? []}
                 from={word}
                 to={chain[i + 1] ?? ''}
-                isWeakest={weights[i] === weakest}
+                weight={weights[i]}
+                relations={relations[i] ?? []}
                 isAsserted={asserted.includes(i)}
                 selected={badLink === i}
                 onMark={onMarkLink}
@@ -77,74 +74,34 @@ export function Ladder({
 
 interface RungProps {
   index: number;
-  weight: number | undefined;
-  relations: string[];
   from: string;
   to: string;
-  isWeakest: boolean;
+  weight: number | undefined;
+  relations: string[];
   isAsserted: boolean;
   selected: boolean;
   onMark: ((index: number) => void) | undefined;
 }
 
-function Rung({
-  index,
-  weight,
-  relations,
-  from,
-  to,
-  isWeakest,
-  isAsserted,
-  selected,
-  onMark,
-}: RungProps) {
-  const value = weight ?? 0;
-  const fill = Math.max(6, Math.min(100, (value / FULL_SCALE) * 100));
-  // Relations matter when adjudicating a doubtful link, not while scanning —
-  // so they live in the tooltip rather than on the card.
-  const label = isAsserted
+function Rung({ index, from, to, weight, relations, isAsserted, selected, onMark }: RungProps) {
+  // Kept in the tooltip only. Nothing about it belongs on the page.
+  const detail = isAsserted
     ? `${from} → ${to} — your word, not ConceptNet's`
-    : `${from} → ${to} — ${value.toFixed(1)} · ${relations.join('/') || 'no relation'}`;
+    : `${from} → ${to}${weight === undefined ? '' : ` — ${weight.toFixed(1)} ${relations.join('/')}`}`;
 
-  const bar = (
-    <span className="flex w-11 flex-col items-center gap-[3px]" aria-hidden="true">
-      <span className="font-data text-[10px] leading-none text-ink-muted">
-        {isAsserted ? '—' : value.toFixed(1)}
-      </span>
-      <span className="h-[3px] w-full overflow-hidden rounded-full bg-rule">
-        <span
-          className={`block h-full rounded-full ${
-            selected
-              ? 'bg-heart'
-              : isAsserted
-                ? 'bg-accent opacity-50'
-                : isWeakest
-                  ? 'bg-heart opacity-70'
-                  : 'bg-accent opacity-45'
-          }`}
-          style={{ width: isAsserted ? '100%' : `${fill}%` }}
-        />
-      </span>
-    </span>
-  );
+  const className = `adm-rung${isAsserted ? ' adm-rung--asserted' : ''}`;
 
   if (onMark === undefined) {
-    return (
-      <span className="px-0.5" title={label}>
-        {bar}
-      </span>
-    );
+    return <span className={`${className} adm-rung--static`} title={detail} aria-hidden="true" />;
   }
   return (
     <button
       type="button"
+      className={className}
       onClick={() => onMark(index)}
       aria-pressed={selected}
-      aria-label={`Mark link ${index + 1}, ${from} to ${to}, as the weak one`}
-      title={`${label} — click to blame this rung`}
-      className={`ring-focus rounded px-0.5 py-1 ${selected ? '' : 'hover:bg-accent-sub'}`}
-    >
-      {bar}
-    </button>
+      aria-label={`Mark the link from ${from} to ${to} as the one that fails`}
+      title={`${detail} — click to blame this link`}
+    />
   );
 }

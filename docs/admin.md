@@ -289,30 +289,51 @@ and pays for it by making each card easier to judge rather than easier to skip.
 
 ### 10. The interface changes
 
-#### 10.1 Direction: a workbench, not a reading surface
+#### 10.1 Direction: a reading desk
 
-The game and the admin share a palette and should keep sharing it — but they
-are not the same kind of object and should not read as the same kind of object.
+The reviewer's whole job is reading word chains and deciding whether they read
+well *to a person*. So the surface is editorial — the type of a well-set
+reference book, not the chrome of a dashboard.
 
-| | The game | The admin |
-|---|---|---|
-| Audience | anyone, once a day | one person, for an hour |
-| Success | feels calm | gets through 867 of them |
-| Typography | serif, generous, few words | serif **for puzzle words only**; everything else tight sans, data in mono |
-| Density | airy | dense, deliberately |
+**Serif for everything textual, mono for data about text, and no UI sans at
+all.** A third family would only blur the one distinction that carries meaning
+here: words versus counts. Source Serif 4 for the words, JetBrains Mono for
+counts, dates and slot chips.
 
-So: same eight colour tokens, same warm ramp, same `light-dark()` mechanism —
-no new palette, no second design system to keep in sync. What changes is
-**density, rhythm and input**. A fourth type token, `--type-data` (mono), lands
-weights, hashes and dates on a grid so a column of numbers can be scanned rather
-than read. Puzzle words stay in `--type-word`, because they are the content and
-the reviewer is judging how they *read*.
+The palette is "book brown + page amber" over warm paper, with a real dark
+ramp rather than an inversion.
 
-> **Rejected: give the admin its own aesthetic.** Tempting — it is a different
-> tool for a different person, and a deliberately industrial look would signal
-> that. Rejected because the reviewer is judging whether a chain reads well *to
-> a player*, and the closer the words look to how they will actually ship, the
-> better that judgement is. The chrome may be utilitarian. The words may not.
+> **Revised after first use.** The original plan said the admin would share the
+> game's eight tokens exactly — one ramp, no second system to keep in sync. In
+> practice that produced a screen with a *single* ink colour, so every line
+> shouted equally and the eye had nowhere to land; in dark mode it read as
+> undifferentiated white text. The fix is not more colours but more **levels**:
+> three inks (`ink` / `ink-soft` / `ink-faint`) and two surfaces, so hierarchy
+> comes from contrast rather than from size alone.
+>
+> These live in `web/src/admin/admin.css`, imported by `AdminApp` — which is
+> lazy, so the tokens and the webfonts travel with the admin chunk and never
+> reach a player. Moving them out of the shared stylesheet made the *game's*
+> CSS smaller (15.3 → 11.6 kB). `assert-no-admin` greps `dist/` for the font
+> URL and an admin class name, so a leak fails the build.
+
+#### 10.1.1 What was removed, and why
+
+Round 2 shipped a screen that was correct and unreadable. Three things went:
+
+- **The edge weight on every rung**, as a number and a bar. The reviewer judges
+  whether two words *read* as related; the weight is ConceptNet's confidence,
+  which the generator needs and a reader does not. Five per card across five
+  cards is twenty-five numbers to not look at. It survives in the connector's
+  tooltip.
+- **The content hash and quality score** on each card. Neither is something a
+  person reads a chain against.
+- **The `START → END` card heading**, which restated the first and last word of
+  the chain printed directly beneath it.
+
+What did *not* go is the click target between two words. `badLink` is the most
+valuable thing this tool collects, so the connector stays — now a rule you
+press rather than a bar with a number on it.
 
 #### 10.2 The ladder turns sideways
 
@@ -592,12 +613,12 @@ line in its report counting hand-authored links.
 
 Independently mergeable, each useful alone, riskiest thing last.
 
-**6d — The interface.** *(done)* Sideways ladder with weight bars, five cards, progress
-rule, `--type-data`. No API change at all beyond a `limit`.
+**6d — The interface.** *(done)* Sideways ladder, five cards, progress rule,
+and the editorial surface of 10.1. No API change at all beyond a `limit`.
 Ships the throughput win on its own.
 
-**6e — Three screens and the sent-back lane.** *(done)* `revisit` verdict, `UpcomingPage`,
-the seven-day strip. Pure state-machine work, no graph involved.
+**6e — Three screens and the sent-back lane.** *(done)* `revisit` verdict,
+`UpcomingPage`, the seven-day strip. Pure state-machine work, no graph.
 
 **6f — Manual editing.** *(done)* `WordEdit`, `validate_puzzle`, the editor UI, and
 manual edges carried through to the exported subgraph. Last because it is the

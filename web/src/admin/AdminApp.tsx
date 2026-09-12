@@ -4,12 +4,12 @@
  * Three screens, and no router for three screens — that would be a dependency
  * earning nothing in a tool one person runs on localhost.
  *
- *   REVIEW     five candidates, plus whatever was sent back
- *   SCHEDULE   approved and undated, plus the next seven open days
- *   UPCOMING   already dated, in date order
+ * `admin.css` is imported here rather than from the app's stylesheet, so the
+ * tokens and webfonts travel with this lazy chunk and never reach a player.
  */
 
 import { useCallback, useState } from 'react';
+import './admin.css';
 import { fetchQueue, type QueueCounts } from './adminClient';
 import { PoolPage } from './PoolPage';
 import { ReviewPage } from './ReviewPage';
@@ -36,31 +36,27 @@ export function AdminApp() {
   }, []);
 
   return (
-    <div className="flex min-h-screen justify-center px-4 py-6">
-      <div className="flex w-full max-w-4xl flex-col gap-4">
-        <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-word text-xl font-semibold">Linkage review</h1>
+    <div className="adm">
+      <div className="adm-page">
+        <header>
+          <h1 className="adm-title">Linkage review</h1>
+          {/* One line, three numbers. The rest was noise. */}
           {counts !== null && (
-            <span className="font-data text-[10px] text-ink-muted">
-              {counts.pending} pending · {counts.approved} approved · {counts.scheduled}{' '}
-              scheduled · {counts.rejected} rejected
-              {counts.returned > 0 ? ` · ${counts.returned} sent back` : ''}
-            </span>
+            <p className="adm-meta" style={{ marginTop: '0.375rem' }}>
+              {counts.approved} approved &nbsp;·&nbsp; {counts.scheduled} dated &nbsp;·&nbsp;{' '}
+              {counts.rejected} rejected
+            </p>
           )}
         </header>
 
-        <nav className="flex gap-1 border-b border-rule">
+        <nav className="adm-tabs">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
+              className="adm-tab"
               onClick={() => setView(tab.id)}
               aria-current={view === tab.id ? 'page' : undefined}
-              className={`ring-focus -mb-px rounded-t-md border-b-2 px-3 py-1.5 text-[13px] ${
-                view === tab.id
-                  ? 'border-accent font-semibold text-accent'
-                  : 'border-transparent text-ink-muted hover:text-ink'
-              }`}
             >
               {tab.label}
             </button>

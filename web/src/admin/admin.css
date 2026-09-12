@@ -1,0 +1,456 @@
+/**
+ * The review tool's own surface (docs/admin.md 10.1).
+ *
+ * Imported only by `AdminApp`, which is lazy and dropped from the production
+ * build — so these tokens and the webfonts below travel with the admin chunk
+ * and never reach a player. `assert-no-admin` checks for the font URL too.
+ *
+ * ── Direction ────────────────────────────────────────────────────────────
+ * A reading desk, not a dashboard. The reviewer's whole job is reading word
+ * chains and deciding whether they read well to a person, so the type is
+ * editorial and the palette is paper.
+ *
+ * Serif for everything textual; mono for counts, dates and labels. No UI
+ * sans at all — a third family would only blur the one distinction that
+ * carries meaning here: words versus data about words.
+ *
+ * Palette is "book brown + page amber", warmed and given a real dark ramp.
+ * The earlier version failed for one reason worth naming: it had a single
+ * ink colour, so every line on the page shouted equally and the eye had
+ * nowhere to land. There are now three ink levels and two surfaces.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.adm {
+  color-scheme: light dark;
+
+  /* ── Surfaces: two levels, so a card lifts off the page ───────────── */
+  --adm-ground: light-dark(#fbf8f1, #17150f);
+  --adm-surface: light-dark(#ffffff, #211d16);
+  --adm-sunk: light-dark(#f4efe4, #131109);
+
+  /* ── Ink: three levels. This is the hierarchy the old one lacked. ─── */
+  --adm-ink: light-dark(#26211b, #f0e9dc);
+  --adm-ink-soft: light-dark(#6b6156, #b3a996);
+  --adm-ink-faint: light-dark(#9a9085, #7d7466);
+
+  --adm-rule: light-dark(#e8e1d2, #322d23);
+  --adm-rule-soft: light-dark(#f1ebdd, #262117);
+
+  /* ── Two hues, used sparingly. Amber approves; rust refuses. ──────── */
+  --adm-amber: light-dark(#a85c1e, #e0a45c);
+  --adm-amber-wash: light-dark(#f6ecdd, #2c2215);
+  --adm-rust: light-dark(#b0452c, #e2866b);
+  --adm-rust-wash: light-dark(#f9eae5, #2e1a14);
+
+  --adm-serif: 'Source Serif 4', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --adm-mono: 'JetBrains Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
+
+  --adm-lift: 0 1px 2px light-dark(rgb(38 33 27 / 4%), rgb(0 0 0 / 24%)),
+    0 4px 12px light-dark(rgb(38 33 27 / 4%), rgb(0 0 0 / 18%));
+
+  background: var(--adm-ground);
+  color: var(--adm-ink);
+  font-family: var(--adm-serif);
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Follow the same stored preference the game's settings toggle writes, so
+   opening /admin after choosing a theme does not flip back to the OS. */
+:root[data-theme='light'] .adm {
+  color-scheme: light;
+}
+:root[data-theme='dark'] .adm {
+  color-scheme: dark;
+}
+
+.adm :focus-visible {
+  outline: 2px solid var(--adm-amber);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ── Structure ──────────────────────────────────────────────────────── */
+
+.adm-page {
+  margin: 0 auto;
+  max-width: 58rem;
+  padding: 2.5rem 1.5rem 6rem;
+}
+
+.adm-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+/* Tabs carry the top level of navigation, so they are sized like it. */
+.adm-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--adm-rule);
+  margin: 1.75rem 0 2rem;
+}
+
+.adm-tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--adm-ink-faint);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.125rem;
+  margin-bottom: -1px;
+  padding: 0.5rem 1rem;
+  transition: color 180ms ease;
+}
+.adm-tab:hover {
+  color: var(--adm-ink-soft);
+}
+.adm-tab[aria-current='page'] {
+  border-bottom-color: var(--adm-amber);
+  color: var(--adm-ink);
+  font-weight: 600;
+}
+
+/* A section heading is a level above the content it introduces. */
+.adm-section {
+  align-items: baseline;
+  display: flex;
+  gap: 0.625rem;
+  justify-content: space-between;
+  margin: 0 0 0.875rem;
+}
+.adm-section > :first-child {
+  margin-right: auto;
+}
+
+.adm-page section + section {
+  display: block;
+  margin-top: 2.75rem;
+}
+.adm-h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/* Mono, tracked, faint: reads as data rather than prose, at any size. */
+.adm-meta {
+  color: var(--adm-ink-faint);
+  font-family: var(--adm-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────── */
+
+.adm-card {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule-soft);
+  border-radius: 10px;
+  box-shadow: var(--adm-lift);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.375rem 1.5rem;
+}
+.adm-card + .adm-card {
+  margin-top: 0.875rem;
+}
+.adm-card--returned {
+  border-color: var(--adm-amber);
+}
+
+.adm-row {
+  align-items: center;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule-soft);
+  border-radius: 8px;
+  box-shadow: var(--adm-lift);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+}
+.adm-row + .adm-row {
+  margin-top: 0.5rem;
+}
+
+/* ── The chain ──────────────────────────────────────────────────────── */
+
+.adm-chain {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* One word and the connector that follows it. */
+.adm-link {
+  align-items: center;
+  display: flex;
+}
+
+/* In a row, the chain absorbs the slack and wraps its own words, so a long
+   chain never pushes the controls onto a line of their own. */
+.adm-row > .adm-chain {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.adm-word {
+  font-size: 1.0625rem;
+  letter-spacing: 0.005em;
+}
+.adm-word--end {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.adm-word--edited {
+  text-decoration: underline dotted var(--adm-amber);
+  text-underline-offset: 5px;
+}
+
+/**
+ * The connector between two words.
+ *
+ * It used to render the edge weight as a number and a bar. Both are gone:
+ * the reviewer judges whether two words *read* as related, and the weight
+ * is a fact about ConceptNet that has no bearing on that judgement. What
+ * has to survive is the click target — `badLink` is the most valuable thing
+ * this tool collects — so the connector stays, as a rule you can press.
+ */
+.adm-rung {
+  appearance: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  padding: 0.75rem 0.3125rem;
+  position: relative;
+}
+.adm-rung::before {
+  background: var(--adm-rule);
+  border-radius: 1px;
+  content: '';
+  display: block;
+  height: 1.5px;
+  transition: background 160ms ease, height 160ms ease;
+  width: 1.375rem;
+}
+.adm-rung:hover::before {
+  background: var(--adm-ink-faint);
+}
+.adm-rung[aria-pressed='true']::before {
+  background: var(--adm-rust);
+  height: 3px;
+}
+.adm-rung--asserted::before {
+  background: var(--adm-amber);
+  height: 1.5px;
+  mask-image: repeating-linear-gradient(90deg, #000 0 3px, transparent 3px 6px);
+}
+.adm-rung--static {
+  cursor: default;
+  padding: 0.75rem 0.3125rem;
+}
+
+/* ── Tiles ──────────────────────────────────────────────────────────── */
+
+.adm-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.adm-tile {
+  background: var(--adm-sunk);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--adm-ink-soft);
+  font-size: 0.9375rem;
+  padding: 0.1875rem 0.5rem;
+}
+
+/* ── Controls ───────────────────────────────────────────────────────── */
+
+.adm-actions {
+  align-items: center;
+  border-top: 1px solid var(--adm-rule-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 1rem;
+}
+
+.adm-btn {
+  appearance: none;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule);
+  border-radius: 6px;
+  color: var(--adm-ink);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: 0.4375rem 0.9375rem;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.adm-btn:hover:not(:disabled) {
+  background: var(--adm-sunk);
+}
+.adm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.adm-btn--go {
+  background: var(--adm-amber);
+  border-color: var(--adm-amber);
+  color: light-dark(#fffdf9, #201a10);
+  font-weight: 600;
+}
+.adm-btn--go:hover:not(:disabled) {
+  background: var(--adm-amber);
+  filter: brightness(1.08);
+}
+
+.adm-btn--no {
+  border-color: light-dark(#e0c2b7, #4a2e25);
+  color: var(--adm-rust);
+}
+.adm-btn--no:hover:not(:disabled) {
+  background: var(--adm-rust-wash);
+}
+
+.adm-btn--quiet {
+  background: none;
+  border-color: transparent;
+  color: var(--adm-ink-soft);
+  padding-inline: 0.5rem;
+}
+.adm-btn--quiet:hover:not(:disabled) {
+  background: var(--adm-sunk);
+  color: var(--adm-ink);
+}
+
+.adm-input {
+  background: var(--adm-ground);
+  border: 1px solid var(--adm-rule);
+  border-radius: 6px;
+  color: var(--adm-ink);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: 0.4375rem 0.75rem;
+}
+.adm-input::placeholder {
+  color: var(--adm-ink-faint);
+}
+.adm-input--word {
+  background: var(--adm-surface);
+  padding: 0.25rem 0.5rem;
+}
+.adm-input--grow {
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+
+/* ── Messages ───────────────────────────────────────────────────────── */
+
+.adm-note {
+  color: var(--adm-ink-soft);
+  font-size: 0.9375rem;
+}
+.adm-refusal {
+  background: var(--adm-rust-wash);
+  border-radius: 6px;
+  color: var(--adm-rust);
+  font-size: 0.9375rem;
+  padding: 0.5rem 0.75rem;
+}
+.adm-asserted {
+  color: var(--adm-amber);
+  font-size: 0.9375rem;
+}
+
+.adm-panel {
+  background: var(--adm-sunk);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1rem 1.125rem;
+}
+
+.adm-empty {
+  color: var(--adm-ink-faint);
+  font-size: 1.0625rem;
+  padding: 3rem 0;
+  text-align: center;
+}
+
+/* ── Progress: one number, set quietly ──────────────────────────────── */
+
+.adm-progress {
+  align-items: center;
+  display: flex;
+  gap: 0.875rem;
+  margin-bottom: 2.25rem;
+}
+.adm-progress-track {
+  background: var(--adm-rule-soft);
+  border-radius: 999px;
+  flex: 1;
+  height: 2px;
+  overflow: hidden;
+}
+.adm-progress-fill {
+  background: var(--adm-amber);
+  display: block;
+  height: 100%;
+}
+
+/* ── Day chips ──────────────────────────────────────────────────────── */
+
+.adm-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.adm-day {
+  appearance: none;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule);
+  border-radius: 6px;
+  color: var(--adm-ink-soft);
+  cursor: pointer;
+  font-family: var(--adm-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.3125rem 0.5625rem;
+  transition: background 160ms ease, color 160ms ease;
+}
+.adm-day:hover:not(:disabled) {
+  background: var(--adm-amber-wash);
+  color: var(--adm-ink);
+}
+.adm-day--static {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm * {
+    transition-duration: 1ms !important;
+  }
+}

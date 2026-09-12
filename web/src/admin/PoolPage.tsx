@@ -9,6 +9,10 @@
  * hard invariant is `date == epoch + (id - 1)` days, so a puzzle occupies a day
  * in an unbroken sequence — a free-form picker would let a reviewer punch a
  * hole that export could never fill.
+ *
+ * The header used to carry three counts nobody asked for ("30 free in the run",
+ * "1 shipped · through 2026-10-01"). They are gone: the days themselves say how
+ * many are free, and what already shipped is the Upcoming screen's business.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -63,142 +67,108 @@ export function PoolPage({ onChanged }: PoolPageProps) {
     }
   };
 
-  if (load.kind === 'loading') return <p className="text-ink-muted">Loading the pool…</p>;
-  if (load.kind === 'error') return <p className="text-[15px] text-heart">{load.message}</p>;
+  if (load.kind === 'loading') return <p className="adm-empty">Loading the pool…</p>;
+  if (load.kind === 'error') return <p className="adm-refusal">{load.message}</p>;
 
-  const { pooled, slots, openDays, archive } = load.data;
+  const { pooled, slots, openDays } = load.data;
   const free = slots.filter((s) => s.hash === null);
   const offered = showAllDays ? free.map((s) => s.date) : openDays;
-  const taken = slots.filter((s) => s.hash !== null).map((s) => s.date);
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* The seven-day strip: a week is the unit a person plans in (12.2). */}
-      <section className="rounded-lg border border-rule bg-surface p-3">
-        <div className="mb-2 flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold">
-            Next open days{' '}
-            <span className="font-data text-[10px] font-normal text-ink-muted">
-              {free.length} free in the run
-            </span>
-          </h2>
-          <span className="font-data text-[10px] text-ink-muted">
-            {archive.count} shipped
-            {archive.lastDate !== null ? ` · through ${archive.lastDate}` : ''}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {openDays.map((day) => (
-            <span
-              key={day}
-              className="rounded border border-rule px-2 py-1 font-data text-xs tabular-nums"
-            >
-              {day.slice(5)}
-            </span>
-          ))}
-          {openDays.length === 0 && (
-            <span className="text-[13px] text-ink-muted">
-              Every day in the run is taken. Run <code className="font-data">linkage export</code>.
-            </span>
-          )}
-        </div>
-        {taken.length > 0 && (
-          // Skipped days named rather than hidden, so a gap is visible before
-          // export reports it (docs/admin.md 8).
-          <p className="mt-2 font-data text-[10px] text-ink-muted">
-            taken: {taken.map((d) => d.slice(5)).join(', ')}
-          </p>
-        )}
-      </section>
-
-      {error !== null && (
-        <p className="rounded-lg border border-heart bg-heart/10 px-3 py-2 text-[13px] text-heart">
-          {error}
-        </p>
-      )}
+    <div>
+      {error !== null && <p className="adm-refusal">{error}</p>}
 
       {warnings !== null && (
-        <div className="rounded-lg border border-rule bg-surface px-3 py-2 text-[13px]">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="font-medium">Scheduled for {warnings.date}</span>
+        <div className="adm-panel">
+          <div className="adm-section" style={{ margin: 0 }}>
+            <h2 className="adm-h2">Scheduled for {format(warnings.date)}</h2>
             <button
               type="button"
+              className="adm-btn adm-btn--quiet"
               onClick={() => setWarnings(null)}
-              className="ring-focus rounded px-1.5 text-xs underline"
             >
               Dismiss
             </button>
           </div>
           {warnings.lines.length === 0 ? (
-            <p className="mt-1 text-xs text-ink-muted">No corpus warnings on that day.</p>
+            <p className="adm-note">Nothing clashes on that day.</p>
           ) : (
-            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-heart">
-              {warnings.lines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
+            warnings.lines.map((line) => (
+              <p key={line} className="adm-refusal">
+                {line}
+              </p>
+            ))
           )}
         </div>
       )}
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">
-          Approved, waiting for a date{' '}
-          <span className="font-data text-xs font-normal text-ink-muted">{pooled.length}</span>
-        </h2>
+      <section>
+        <div className="adm-section">
+          <h2 className="adm-h2">Next open days</h2>
+        </div>
+        {openDays.length === 0 ? (
+          <p className="adm-note">Every day in the run is taken.</p>
+        ) : (
+          <div className="adm-days">
+            {openDays.map((day) => (
+              <span key={day} className="adm-day adm-day--static">
+                {format(day)}
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="adm-section">
+          <h2 className="adm-h2">Waiting for a date</h2>
+          <span className="adm-meta">{pooled.length}</span>
+        </div>
         {pooled.length === 0 ? (
-          <p className="text-[13px] text-ink-muted">
-            The pool is empty. Approve some candidates in the queue.
-          </p>
+          <p className="adm-empty">Nothing approved yet.</p>
         ) : (
           pooled.map((puzzle) => (
-            <article
-              key={puzzle.hash}
-              className="flex flex-col gap-2 rounded-lg border border-rule bg-surface px-3 py-2"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Ladder
-                  chain={puzzle.chain}
-                  weights={puzzle.linkWeights}
-                  relations={puzzle.relations}
-                  edits={puzzle.bankEdits}
-                />
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={busy || free.length === 0}
-                    onClick={() => setPicking(picking === puzzle.hash ? null : puzzle.hash)}
-                    aria-expanded={picking === puzzle.hash}
-                    title={free.length === 0 ? 'Every slot in the run is taken' : undefined}
-                    className="ring-focus rounded-md border border-rule px-2 py-1 text-xs disabled:opacity-40"
-                  >
-                    Schedule
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void act(() => sendBackPuzzle(puzzle.hash))}
-                    title="Back to the review queue, into its own lane"
-                    className="ring-focus rounded-md px-2 py-1 text-xs underline disabled:opacity-40"
-                  >
-                    Send back
-                  </button>
-                </div>
+            <article key={puzzle.hash} className="adm-row">
+              <Ladder
+                chain={puzzle.chain}
+                weights={puzzle.linkWeights}
+                relations={puzzle.relations}
+                edits={puzzle.bankEdits}
+              />
+              <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                {puzzle.manualEdges.length > 0 && (
+                  <span className="adm-meta" title="Ships a link you asserted">
+                    {puzzle.manualEdges.length} asserted
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="adm-btn"
+                  disabled={busy || free.length === 0}
+                  onClick={() => setPicking(picking === puzzle.hash ? null : puzzle.hash)}
+                  aria-expanded={picking === puzzle.hash}
+                  title={free.length === 0 ? 'Every slot in the run is taken' : undefined}
+                >
+                  Schedule
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--quiet"
+                  disabled={busy}
+                  onClick={() => void act(() => sendBackPuzzle(puzzle.hash))}
+                  title="Back to the review queue, into its own lane"
+                >
+                  Send back
+                </button>
               </div>
 
-              {puzzle.manualEdges.length > 0 && (
-                <p className="font-data text-[10px] text-accent">
-                  {puzzle.manualEdges.length} hand-authored link
-                  {puzzle.manualEdges.length === 1 ? '' : 's'}
-                </p>
-              )}
-
               {picking === puzzle.hash && (
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="adm-days" style={{ flexBasis: '100%' }}>
                   {offered.map((day) => (
                     <button
                       key={day}
                       type="button"
+                      className="adm-day"
                       disabled={busy}
                       onClick={() =>
                         void act(async () => {
@@ -207,18 +177,17 @@ export function PoolPage({ onChanged }: PoolPageProps) {
                           setPicking(null);
                         })
                       }
-                      className="ring-focus rounded border border-rule px-2 py-1 font-data text-xs tabular-nums hover:bg-accent-sub disabled:opacity-40"
                     >
-                      {day.slice(5)}
+                      {format(day)}
                     </button>
                   ))}
                   {free.length > offered.length && (
                     <button
                       type="button"
+                      className="adm-btn adm-btn--quiet"
                       onClick={() => setShowAllDays(true)}
-                      className="ring-focus rounded px-1.5 py-1 text-xs underline"
                     >
-                      +{free.length - offered.length} more
+                      {free.length - offered.length} more
                     </button>
                   )}
                 </div>
@@ -229,4 +198,11 @@ export function PoolPage({ onChanged }: PoolPageProps) {
       </section>
     </div>
   );
+}
+
+/** `2026-10-04` → `4 Oct`. A reviewer picks a day, not an ISO string. */
+export function format(date: string): string {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return `${parsed.getDate()} ${parsed.toLocaleString('en', { month: 'short' })}`;
 }

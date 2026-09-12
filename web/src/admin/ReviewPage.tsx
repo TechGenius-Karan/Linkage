@@ -1,16 +1,10 @@
 /**
  * The review queue (docs/admin.md 9, 10.3).
  *
- * Five candidates at a time, not one. The first version showed one — right for
- * round 1, where the risk was skimming; wrong at 867 candidates, where a
- * verdict takes two seconds and re-orienting to a fresh screen takes longer
- * than the judgement did.
- *
- * Five needs no client-side bookkeeping, which is the only reason it is
- * affordable. The queue is sorted deterministically, so "the first five
- * pending" after a verdict is *by construction* the four survivors in their
- * original order plus one new arrival. Refetch, render, done — there is no list
- * to reconcile and no way for the two to drift.
+ * Five candidates at a time, which needs no client-side bookkeeping: the queue
+ * is sorted deterministically, so "the first five pending" after a verdict is
+ * by construction the four survivors in their original order plus one new
+ * arrival. Refetch and render — no list to reconcile, nothing that can drift.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -71,15 +65,14 @@ export function ReviewPage({ onCounts }: ReviewPageProps) {
     }
   };
 
-  if (load.kind === 'loading') return <p className="text-ink-muted">Loading the queue…</p>;
+  if (load.kind === 'loading') return <p className="adm-empty">Loading the queue…</p>;
 
   if (load.kind === 'error') {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-[15px] text-heart">{load.message}</p>
-        <pre className="overflow-x-auto rounded-lg border border-rule bg-surface p-3 font-data text-xs">
-          cd engine{'\n'}python -m linkage_engine admin
-        </pre>
+      <div className="adm-panel">
+        <p className="adm-refusal">{load.message}</p>
+        <p className="adm-note">Start it with:</p>
+        <p className="adm-meta">cd engine &nbsp;·&nbsp; python -m linkage_engine admin</p>
       </div>
     );
   }
@@ -108,27 +101,23 @@ export function ReviewPage({ onCounts }: ReviewPageProps) {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div>
       <Progress decided={counts.decided} total={counts.total} />
 
-      {error !== null && (
-        <p className="rounded-lg border border-heart bg-heart/10 px-3 py-2 text-[13px] text-heart">
-          {error}
-        </p>
-      )}
+      {error !== null && <p className="adm-refusal">{error}</p>}
 
       {lastDecided !== null && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-surface px-3 py-1.5 text-[13px]">
-          <span className="text-ink-muted">{lastDecided.label}</span>
+        <div className="adm-row">
+          <span className="adm-note">{lastDecided.label}</span>
           <button
             type="button"
+            className="adm-btn adm-btn--quiet"
             disabled={busy}
             onClick={() => {
               const hash = lastDecided.hash;
               setLastDecided(null);
               void act(() => undoPuzzle(hash), null);
             }}
-            className="ring-focus rounded px-2 py-1 font-medium underline disabled:opacity-40"
           >
             Undo
           </button>
@@ -136,26 +125,22 @@ export function ReviewPage({ onCounts }: ReviewPageProps) {
       )}
 
       {returned.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold">
-            Sent back for another look ({returned.length})
-          </h2>
+        <section>
+          <div className="adm-section">
+            <h2 className="adm-h2">Sent back</h2>
+            <span className="adm-meta">{returned.length}</span>
+          </div>
           {returned.map((puzzle) => card(puzzle, true))}
         </section>
       )}
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">
-          Queue{' '}
-          <span className="font-data text-xs font-normal text-ink-muted">
-            {counts.pending} pending
-          </span>
-        </h2>
+      <section>
+        <div className="adm-section">
+          <h2 className="adm-h2">Queue</h2>
+          <span className="adm-meta">{counts.pending.toLocaleString()} waiting</span>
+        </div>
         {puzzles.length === 0 ? (
-          <p className="py-8 text-center text-[15px] text-ink-muted">
-            Nothing left to review. Run <code className="font-data">linkage generate</code> for
-            more.
-          </p>
+          <p className="adm-empty">Nothing left to review.</p>
         ) : (
           puzzles.map((puzzle) => card(puzzle, false))
         )}
@@ -174,12 +159,12 @@ export function ReviewPage({ onCounts }: ReviewPageProps) {
 function Progress({ decided, total }: { decided: number; total: number }) {
   const pct = total === 0 ? 0 : (decided / total) * 100;
   return (
-    <div className="flex items-center gap-3">
-      <span className="h-[3px] flex-1 overflow-hidden rounded-full bg-rule">
-        <span className="block h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+    <div className="adm-progress">
+      <span className="adm-progress-track">
+        <span className="adm-progress-fill" style={{ width: `${pct}%` }} />
       </span>
-      <span className="font-data text-[10px] text-ink-muted">
-        {decided} / {total} decided
+      <span className="adm-meta">
+        {decided} of {total.toLocaleString()}
       </span>
     </div>
   );
