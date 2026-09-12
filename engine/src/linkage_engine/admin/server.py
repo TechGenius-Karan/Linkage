@@ -116,13 +116,20 @@ class AdminHandler(BaseHTTPRequestHandler):
         def edits() -> tuple:
             return handlers.read_edits(body.get("edits"))
 
+        def edges() -> tuple:
+            return handlers.read_edges(body.get("manualEdges"))
+
+        def edited() -> bool:
+            return bool(body.get("edits") or body.get("manualEdges"))
+
         if path == "/api/admin/approve":
             self._run(
                 lambda: handlers.approve(
                     self.cfg,
                     need("hash"),
                     edits=edits(),
-                    graph=self.graph() if body.get("edits") else None,
+                    manual_edges=edges(),
+                    graph=self.graph() if edited() else None,
                 )
             )
         elif path == "/api/admin/reject":
@@ -133,15 +140,21 @@ class AdminHandler(BaseHTTPRequestHandler):
             )
         elif path == "/api/admin/undo":
             self._run(lambda: handlers.undo(self.cfg, need("hash")))
-        elif path == "/api/admin/swap":
-            self._run(lambda: handlers.swap(self.cfg, self.graph(), need("hash"), edits()))
+        elif path == "/api/admin/edit":
+            self._run(
+                lambda: handlers.edit(
+                    self.cfg, self.graph(), need("hash"), edits(), edges()
+                )
+            )
+        elif path == "/api/admin/revisit":
+            self._run(lambda: handlers.send_back(self.cfg, need("hash")))
         elif path == "/api/admin/swaps":
             # A read, served over POST, because it takes the reviewer's pending
             # and still-unsaved edits -- a list of pairs that a query string
             # has no natural encoding for. It writes nothing.
             self._run(
                 lambda: handlers.swap_options(
-                    self.cfg, self.graph(), need("hash"), need("removed"), edits()
+                    self.cfg, self.graph(), need("hash"), need("removed"), edits(), edges()
                 )
             )
         elif path == "/api/admin/schedule":

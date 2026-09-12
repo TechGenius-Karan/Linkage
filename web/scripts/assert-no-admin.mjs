@@ -23,8 +23,14 @@ const FORBIDDEN = [
   'linkage admin',
   'adminClient',
   'ReviewCard',
-  'BankEditor',
+  'PuzzleEditor',
   'PoolPage',
+  'ReviewPage',
+  'UpcomingPage',
+  // The admin's own stylesheet and its webfonts (admin.css). They ride the
+  // lazy chunk, so a leak here means the whole admin leaked with them.
+  'adm-rung',
+  'fonts.googleapis.com',
 ];
 
 function walk(dir) {

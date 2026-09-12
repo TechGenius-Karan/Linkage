@@ -9,19 +9,19 @@
 /** Structural. Changing it touches the solver, the exporter and the board. */
 export const CHAIN_LENGTH = 4;
 
-/**
- * Provisional (planning.md 2.5.1). Presented as hearts, never as a counter.
- * Settled at the Phase 5 playtest gate from observed win rate, not guessed —
- * three proved too harsh and six starts to make mechanical probing viable.
- */
-export const MAX_ATTEMPTS = 5;
-
 /** Spec allows 10–12; the generator falls back to 10 when safe distractors run short. */
 /**
  * Hints available per puzzle (planning.md 2.5.3). Two leaves two unknowns plus
  * the entire ordering problem; three would very nearly hand the puzzle over.
  */
 export const MAX_HINTS = 2;
+
+/**
+ * Provisional (planning.md 2.5.2). Added to the visible timer each time a hint
+ * is taken — the number itself is unmeasured and waits on the same Phase 5
+ * playtest gate that used to settle MAX_ATTEMPTS.
+ */
+export const HINT_TIME_PENALTY_MS = 20_000;
 
 export const BANK_MIN = 10;
 export const BANK_MAX = 12;
@@ -63,7 +63,11 @@ export interface Puzzle {
   bank: string[];
 }
 
-export type GameStatus = 'playing' | 'won' | 'lost';
+/**
+ * No 'lost' (planning.md 2.5.2, superseding 2.5.1): there is no forced loss
+ * state, and no give-up path. A puzzle stays 'playing' until it is won.
+ */
+export type GameStatus = 'playing' | 'won';
 
 export interface Attempt {
   tiles: string[];
@@ -87,6 +91,16 @@ export interface GameState {
    * and reconstructing this later would be impossible.
    */
   hintsUsed: string[];
+  /** Epoch ms when the puzzle was opened. Never recomputed, so a refresh keeps the true start. */
+  startedAt: number;
+  /** Epoch ms the current background pause began, or `null` while active (planning.md 2.5.2). */
+  pausedAt: number | null;
+  /** Sum of every *completed* pause, in ms. The pause in progress lives in `pausedAt` until `RESUME` folds it in here. */
+  totalPausedMs: number;
+  /** ms added to the timer for hints taken so far (planning.md 2.5.3), `MAX_HINTS * HINT_TIME_PENALTY_MS` at most. */
+  hintPenaltyMs: number;
+  /** Epoch ms of the winning guess, or `null` while still playing. Freezes `elapsedMs` once set. */
+  finishedAt: number | null;
 }
 
 export type Action =
@@ -95,15 +109,20 @@ export type Action =
   | { type: 'MOVE_TILE'; from: number; to: number }
   | { type: 'REMOVE_TILE'; slot: number }
   | { type: 'TAKE_HINT' }
-  | { type: 'SUBMIT' }
+  | { type: 'SUBMIT'; now: number }
+  | { type: 'PAUSE'; now: number }
+  | { type: 'RESUME'; now: number }
   | { type: 'RESTORE'; state: GameState };
 
 export interface Stats {
   gamesPlayed: number;
-  wins: number;
   currentStreak: number;
   maxStreak: number;
-  /** Index 0 is a win in one attempt; length MAX_ATTEMPTS. */
+  /** `null` until the first win. */
+  bestTimeMs: number | null;
+  /** Sum of every win's elapsed time, so `totalTimeMs / gamesPlayed` gives the average. */
+  totalTimeMs: number;
+  /** Index i = wins whose time fell in bucket i of `TIME_BUCKETS_MS` (engine/stats.ts). */
   distribution: number[];
   lastCompletedId: number | null;
 }

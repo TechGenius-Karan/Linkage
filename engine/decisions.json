@@ -4,6 +4,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -12,6 +13,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -20,6 +22,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -28,6 +31,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -36,6 +40,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -44,6 +49,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -52,6 +58,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -60,6 +67,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
     "reason": "the connection from roof to tin doesent make sense at all as a roof is usually not made of tin and is made of other materials",
     "verdict": "reject"
   },
@@ -68,6 +76,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -76,6 +85,16 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "38a95ee8ef625b36": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -84,7 +103,35 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "3f416e7e580de184": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "this is the point where the puzzle kind of fails as the options in the word bank are closely related and could easily replace this and also notebook isnt closesly related to notebook as well, it feels like its taking a different path or direction.",
+    "verdict": "reject"
+  },
+  "4422abec06f3695a": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "there is absolutely no connection between these two",
+    "verdict": "reject"
+  },
+  "47e5bcc5a57b0576": {
+    "badLink": 4,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "the association is weak and tenuous",
     "verdict": "reject"
   },
   "4aedbd954678a16f": {
@@ -92,6 +139,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -100,6 +148,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -108,7 +157,26 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "510ae107481fe68a": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "this is the only connection that is weak but others are pretty good so try to improve and refine on this",
+    "verdict": "reject"
+  },
+  "574ac6098c7d5b54": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "i didnt even understand this",
     "verdict": "reject"
   },
   "5843b21e89263ed6": {
@@ -116,6 +184,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
     "reason": "this link is too vage, broad and isnt directly related to it at all. also the freeway to america is also a bad link.",
     "verdict": "reject"
   },
@@ -123,15 +192,35 @@
     "badLink": null,
     "bankEdits": [],
     "date": null,
-    "decidedAt": "2026-09-05",
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
+  },
+  "69b6b03a02a064d2": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "only this clue is altering the puzzle rest all is fine. as the connection between pencil and cup is very weak",
+    "verdict": "reject"
   },
   "6c28ef93a3f9bb7f": {
     "badLink": null,
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "712d7d8910c5b826": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -140,6 +229,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -148,6 +238,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
     "reason": "the entire puzzle feels wrong and the selected link especially is far-fetched",
     "verdict": "reject"
   },
@@ -156,6 +247,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -164,6 +256,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
@@ -172,6 +265,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -180,6 +274,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -188,7 +283,17 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "8e20ec93dd762204": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "the association between canvas and covering is too weak as it isnt a directly related property of canvas",
     "verdict": "reject"
   },
   "914f26dab7c660bf": {
@@ -196,6 +301,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -204,6 +310,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -212,7 +319,17 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "aa485937a4c16025": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "reading isn't necessarily fun for everyone and isnt a defintive attribute especially for something like reading or learning as many kids and sometimes even older people may find it uninteresting so it should not be taken as a connection",
     "verdict": "reject"
   },
   "c0ae27b17916cdc0": {
@@ -220,7 +337,17 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
     "reason": "nope the connections is too vague",
+    "verdict": "reject"
+  },
+  "c207405cf03b251b": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "no relation",
     "verdict": "reject"
   },
   "c7d7f2e952098628": {
@@ -228,6 +355,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
     "reason": "nope the entire puzzle is wrong as the links aren't connected at all",
     "verdict": "reject"
   },
@@ -236,6 +364,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -244,6 +373,7 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
@@ -252,14 +382,34 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
+  },
+  "ea919c607764e670": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "handle and brush arent closely related and is too vague as handle could be a part of many items and things and doesent have any actual relation with brush",
+    "verdict": "reject"
+  },
+  "ec60f0216a411e4d": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "from animals we go to zoo but then it takes it right back to an example of an animals which could have been used from the start itself. it doesent have that progression of going further or in some direction as it reverts back",
+    "verdict": "reject"
   },
   "fa7037ed55fd4f53": {
     "badLink": null,
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-05",
+    "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   }

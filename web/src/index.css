@@ -37,6 +37,10 @@
 
   --type-word: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --type-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Admin only (docs/admin.md 10.1). Weights, hashes and dates land on a grid,
+     so a column of numbers can be scanned instead of read. The game never uses
+     it -- there are no numbers on the board. */
+  --type-data: 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
 }
 
 /* The two overrides. Set by the theme control in settings; applied to <html>
@@ -60,6 +64,7 @@
 
   --font-word: var(--type-word);
   --font-ui: var(--type-ui);
+  --font-data: var(--type-data);
 }
 
 body {

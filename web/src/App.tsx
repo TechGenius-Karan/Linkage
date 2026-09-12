@@ -9,13 +9,14 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { dateForPuzzleNumber, puzzleNumberFor } from './engine/dailyIndex';
 import {
+  elapsedMs,
   hintsRemaining,
   initialState,
   isBoardFull,
-  livesRemaining,
   makeGameReducer,
 } from './engine/gameReducer';
 import type { ProgressStore, PuzzleRepository } from './engine/ports';
+import { buildShareText } from './engine/shareText';
 import { recordResult } from './engine/stats';
 import { PuzzleNotFound, type GameState, type Puzzle } from './engine/types';
 import { AttemptHistory } from './ui/AttemptHistory';
@@ -156,11 +157,11 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
   const [state, dispatch] = useReducer(
     reducer,
     puzzle.id,
-    (pid) => store.readProgress(pid) ?? initialState(pid),
+    (pid) => store.readProgress(pid) ?? initialState(pid, Date.now()),
   );
 
   // Persist every change. Cheap, and it is what makes a mid-game refresh
-  // restore the board and the spent lives exactly.
+  // restore the board and the running timer exactly (planning.md 2.5.2).
   useEffect(() => {
     store.writeProgress(state.puzzleId, state);
   }, [store, state]);
@@ -175,7 +176,39 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
     store.writeStats(recordResult(store.readStats(), state));
   }, [store, state]);
 
-  const lives = livesRemaining(state);
+  // The clock. Ticks once a second while playing; `elapsedMs` freezes itself
+  // once `pausedAt`/`finishedAt` are set, so nothing here needs to know why.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (state.status !== 'playing') return;
+    const id = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [state.status]);
+
+  // Commute, queue, phone down mid-puzzle (planning.md 2.5.2): the timer must
+  // not charge a player for the game being backgrounded.
+  useEffect(() => {
+    if (state.status !== 'playing') return;
+    const onVisibilityChange = () => {
+      dispatch({
+        type: document.visibilityState === 'hidden' ? 'PAUSE' : 'RESUME',
+        now: Date.now(),
+      });
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [state.status]);
+
+  // A hint lands as a visible +20s jump, not just a bigger number on the next
+  // tick (planning.md 2.5.3).
+  const [hintFlash, setHintFlash] = useState(false);
+  const takeHint = useCallback(() => {
+    dispatch({ type: 'TAKE_HINT' });
+    setHintFlash(true);
+    setTimeout(() => setHintFlash(false), 1_500);
+  }, []);
+
+  const elapsed = elapsedMs(state, now);
   const lastAttempt = state.attempts.at(-1);
   const over = state.status !== 'playing';
 
@@ -183,11 +216,7 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
     <>
       <Header
         puzzleNumber={puzzle.id}
-        onHint={
-          over || hintsRemaining(state, puzzle) === 0
-            ? undefined
-            : () => dispatch({ type: 'TAKE_HINT' })
-        }
+        onHint={over || hintsRemaining(state, puzzle) === 0 ? undefined : takeHint}
       />
 
       {newDayAvailable && (
@@ -204,7 +233,6 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
         start={puzzle.start}
         end={puzzle.end}
         slots={state.slots}
-        revealed={state.status === 'lost' ? puzzle.solution : undefined}
         onSlotClick={over ? undefined : (slot) => dispatch({ type: 'PLACE_TILE', slot })}
         onSlotRemove={over ? undefined : (slot) => dispatch({ type: 'REMOVE_TILE', slot })}
         onMove={over ? undefined : (from, to) => dispatch({ type: 'MOVE_TILE', from, to })}
@@ -220,24 +248,19 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
       />
 
       <SubmitBar
-        livesRemaining={lives}
+        elapsedMs={elapsed}
+        hintFlash={hintFlash}
         lastCorrect={lastAttempt?.correctCount ?? null}
         status={state.status}
         attemptsTaken={state.attempts.length}
         canSubmit={isBoardFull(state)}
-        onSubmit={() => dispatch({ type: 'SUBMIT' })}
+        onSubmit={() => dispatch({ type: 'SUBMIT', now: Date.now() })}
+        shareText={state.status === 'won' ? buildShareText(state) : undefined}
       />
 
       <WordBank
         bank={puzzle.bank}
-        // On a loss the board shows the answer, so the bank has to ghost the
-        // answer too. Ghosting the player's wrong tiles instead leaves the two
-        // halves of the screen disagreeing about what is on the board.
-        placed={
-          state.status === 'lost'
-            ? puzzle.solution
-            : state.slots.filter((w): w is string => w !== null)
-        }
+        placed={state.slots.filter((w): w is string => w !== null)}
         selected={state.selectedTile}
         confirmed={state.hintsUsed}
         onTileClick={over ? undefined : (tileId) => dispatch({ type: 'SELECT_TILE', tileId })}

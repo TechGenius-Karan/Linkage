@@ -1,13 +1,13 @@
 /**
- * Every rule of the game (planning.md 8.2, 2.4, 2.5, 2.5.3).
+ * Every rule of the game (planning.md 8.2, 2.4, 2.5, 2.5.2, 2.5.3).
  *
  * Plain function calls — the reducer is curried over the puzzle, so none of
  * this needs React, a DOM, or a mock.
  */
 
 import { describe, expect, it } from 'vitest';
-import { hintsRemaining, initialState, isBoardFull, livesRemaining, makeGameReducer } from '../src/engine/gameReducer';
-import { MAX_ATTEMPTS, type Action, type GameState, type Puzzle } from '../src/engine/types';
+import { elapsedMs, hintsRemaining, initialState, isBoardFull, makeGameReducer } from '../src/engine/gameReducer';
+import { HINT_TIME_PENALTY_MS, type Action, type GameState, type Puzzle } from '../src/engine/types';
 
 const puzzle: Puzzle = {
   schemaVersion: 1,
@@ -20,9 +20,12 @@ const puzzle: Puzzle = {
   bank: ['sea', 'ocean', 'cloud', 'sky', 'shark', 'blue', 'nest', 'wave', 'birds', 'color', 'feathers'],
 };
 
+const NOW = 1_700_000_000_000;
+
 const reduce = makeGameReducer(puzzle);
 const run = (state: GameState, ...actions: Action[]) => actions.reduce(reduce, state);
-const fresh = () => initialState(1);
+const fresh = () => initialState(1, NOW);
+const submit = (now = NOW): Action => ({ type: 'SUBMIT', now });
 
 /** Place `word` into `slot` the way a player would: select, then tap. */
 const place = (word: string, slot: number): Action[] => [
@@ -155,9 +158,14 @@ describe('hints (planning.md 2.5.3)', () => {
     expect(s.slots.every((x) => x === null)).toBe(true);
   });
 
-  it('never costs a life', () => {
+  it('costs time, not a life (planning.md 2.5.2)', () => {
     const s = run(fresh(), { type: 'TAKE_HINT' });
-    expect(livesRemaining(s)).toBe(MAX_ATTEMPTS);
+    expect(elapsedMs(s, NOW)).toBe(HINT_TIME_PENALTY_MS);
+  });
+
+  it('stacks the penalty across multiple hints', () => {
+    const s = run(fresh(), { type: 'TAKE_HINT' }, { type: 'TAKE_HINT' });
+    expect(elapsedMs(s, NOW)).toBe(2 * HINT_TIME_PENALTY_MS);
   });
 
   it('only ever names real answers', () => {
@@ -176,85 +184,97 @@ describe('hints (planning.md 2.5.3)', () => {
     const s = run(fresh(), { type: 'TAKE_HINT' }, { type: 'TAKE_HINT' });
     expect(s.hintsUsed).not.toContain('sky');
   });
+
+  it('does not name a word twice if taken again after running out', () => {
+    const s = run(fresh(), { type: 'TAKE_HINT' }, { type: 'TAKE_HINT' }, { type: 'TAKE_HINT' });
+    expect(elapsedMs(s, NOW)).toBe(2 * HINT_TIME_PENALTY_MS);
+  });
+});
+
+describe('elapsedMs — the timer (planning.md 2.5.2)', () => {
+  it('is zero the instant a puzzle starts', () => {
+    expect(elapsedMs(fresh(), NOW)).toBe(0);
+  });
+
+  it('ticks with wall-clock time', () => {
+    expect(elapsedMs(fresh(), NOW + 5_000)).toBe(5_000);
+  });
+
+  it('freezes while paused', () => {
+    const s = run(fresh(), { type: 'PAUSE', now: NOW + 3_000 });
+    expect(elapsedMs(s, NOW + 10_000)).toBe(3_000);
+  });
+
+  it('resumes counting from where it paused', () => {
+    let s = run(fresh(), { type: 'PAUSE', now: NOW + 3_000 });
+    s = run(s, { type: 'RESUME', now: NOW + 10_000 }); // paused for 7s
+    expect(elapsedMs(s, NOW + 12_000)).toBe(5_000); // 3s before + 2s after
+  });
+
+  it('a second PAUSE while already paused does not stack', () => {
+    let s = run(fresh(), { type: 'PAUSE', now: NOW + 3_000 });
+    s = run(s, { type: 'PAUSE', now: NOW + 6_000 });
+    s = run(s, { type: 'RESUME', now: NOW + 10_000 });
+    expect(elapsedMs(s, NOW + 10_000)).toBe(3_000);
+  });
+
+  it('RESUME without a matching PAUSE is a no-op', () => {
+    const s = run(fresh(), { type: 'RESUME', now: NOW + 5_000 });
+    expect(elapsedMs(s, NOW + 5_000)).toBe(5_000);
+  });
+
+  it('freezes on the winning guess, regardless of when elapsedMs is later read', () => {
+    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), submit(NOW + 40_000));
+    expect(elapsedMs(s, NOW + 999_000)).toBe(40_000);
+  });
 });
 
 describe('SUBMIT', () => {
   it('is ignored until all four slots are filled', () => {
-    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky']), { type: 'SUBMIT' });
+    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky']), submit());
     expect(s.attempts).toHaveLength(0);
   });
 
   it('reports how many slots are right, never which', () => {
-    const s = run(fresh(), ...fill(['ocean', 'sea', 'sky', 'cloud']), { type: 'SUBMIT' });
+    const s = run(fresh(), ...fill(['ocean', 'sea', 'sky', 'cloud']), submit());
     expect(s.attempts[0]?.correctCount).toBe(2);
     expect(Object.keys(s.attempts[0] ?? {})).toEqual(['tiles', 'correctCount']);
   });
 
   it('counts positionally, so the right words in the wrong order score low', () => {
     // All four solution words, none in place.
-    const s = run(fresh(), ...fill(['birds', 'sky', 'blue', 'ocean']), { type: 'SUBMIT' });
+    const s = run(fresh(), ...fill(['birds', 'sky', 'blue', 'ocean']), submit());
     expect(s.attempts[0]?.correctCount).toBe(0);
   });
 
   it('wins on four correct', () => {
-    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), { type: 'SUBMIT' });
+    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), submit());
     expect(s.status).toBe('won');
   });
 
-  it('loses only after every life is spent', () => {
+  it('never ends the game on a wrong guess — guesses are free (planning.md 2.5.2)', () => {
     let s = fresh();
-    s = run(s, ...fill(['sea', 'cloud', 'shark', 'nest']));
-    for (let i = 1; i < MAX_ATTEMPTS; i++) {
-      s = run(s, { type: 'SUBMIT' });
+    for (let i = 0; i < 20; i++) {
+      s = run(s, ...fill(['sea', 'cloud', 'shark', 'nest']), submit());
       expect(s.status).toBe('playing');
-      expect(livesRemaining(s)).toBe(MAX_ATTEMPTS - i);
     }
-    s = run(s, { type: 'SUBMIT' });
-    expect(s.status).toBe('lost');
-    expect(livesRemaining(s)).toBe(0);
   });
 
-  it('accepts a win on the final life', () => {
-    let s = run(fresh(), ...fill(['sea', 'cloud', 'shark', 'nest']));
-    for (let i = 1; i < MAX_ATTEMPTS; i++) s = run(s, { type: 'SUBMIT' });
-    s = run(s, ...fill(['ocean', 'blue', 'sky', 'birds']), { type: 'SUBMIT' });
+  it('accepts a win after many wrong guesses', () => {
+    let s = fresh();
+    for (let i = 0; i < 10; i++) s = run(s, ...fill(['sea', 'cloud', 'shark', 'nest']), submit());
+    s = run(s, ...fill(['ocean', 'blue', 'sky', 'birds']), submit());
     expect(s.status).toBe('won');
   });
 
   it('clears the selection so a spent guess does not leave a tile held', () => {
-    const s = run(fresh(), ...fill(['sea', 'cloud', 'shark', 'nest']), { type: 'SELECT_TILE', tileId: 'ocean' }, { type: 'SUBMIT' });
+    const s = run(fresh(), ...fill(['sea', 'cloud', 'shark', 'nest']), { type: 'SELECT_TILE', tileId: 'ocean' }, submit());
     expect(s.selectedTile).toBeNull();
   });
 });
 
-describe('livesRemaining', () => {
-  it('does not charge a life for the winning guess', () => {
-    // A life is lost by being wrong. Charging for the win renders a first-try
-    // solve with a drained heart, which reads as a penalty on the one screen
-    // people screenshot.
-    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), { type: 'SUBMIT' });
-    expect(s.status).toBe('won');
-    expect(livesRemaining(s)).toBe(MAX_ATTEMPTS);
-  });
-
-  it('charges only the failed guesses on a later win', () => {
-    let s = run(fresh(), ...fill(['sea', 'cloud', 'shark', 'nest']));
-    s = run(s, { type: 'SUBMIT' }, { type: 'SUBMIT' });          // two wrong
-    s = run(s, ...fill(['ocean', 'blue', 'sky', 'birds']), { type: 'SUBMIT' });
-    expect(s.status).toBe('won');
-    expect(livesRemaining(s)).toBe(MAX_ATTEMPTS - 2);
-  });
-
-  it('reaches zero on a loss', () => {
-    let s = run(fresh(), ...fill(['sea', 'cloud', 'shark', 'nest']));
-    for (let i = 0; i < MAX_ATTEMPTS; i++) s = run(s, { type: 'SUBMIT' });
-    expect(s.status).toBe('lost');
-    expect(livesRemaining(s)).toBe(0);
-  });
-});
-
 describe('terminal states are frozen', () => {
-  const won = () => run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), { type: 'SUBMIT' });
+  const won = () => run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), submit(NOW + 1_000));
 
   it.each<Action>([
     { type: 'SELECT_TILE', tileId: 'sea' },
@@ -262,7 +282,9 @@ describe('terminal states are frozen', () => {
     { type: 'MOVE_TILE', from: 0, to: 1 },
     { type: 'REMOVE_TILE', slot: 0 },
     { type: 'TAKE_HINT' },
-    { type: 'SUBMIT' },
+    { type: 'SUBMIT', now: NOW + 5_000 },
+    { type: 'PAUSE', now: NOW + 5_000 },
+    { type: 'RESUME', now: NOW + 5_000 },
   ])('ignores %o after the game ends', (action) => {
     const end = won();
     expect(reduce(end, action)).toEqual(end);
@@ -279,7 +301,7 @@ describe('the solution never enters state', () => {
   it('is absent from a serialised game', () => {
     // GameState goes into localStorage and is visible in React DevTools. The
     // reducer is curried over the puzzle precisely so the answer stays out.
-    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), { type: 'SUBMIT' });
+    const s = run(fresh(), ...fill(['ocean', 'blue', 'sky', 'birds']), submit());
     const json = JSON.stringify(s);
     expect(json).not.toContain('solution');
     expect(isBoardFull(s)).toBe(true);

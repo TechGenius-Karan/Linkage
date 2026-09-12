@@ -1,0 +1,640 @@
+/**
+ * The review tool's own surface (docs/admin.md 10.1).
+ *
+ * Imported only by `AdminApp`, which is lazy and dropped from the production
+ * build — so these tokens and the webfonts below travel with the admin chunk
+ * and never reach a player. `assert-no-admin` checks for the font URL too.
+ *
+ * ── Direction ────────────────────────────────────────────────────────────
+ * A reading desk, not a dashboard. The reviewer's whole job is reading word
+ * chains and deciding whether they read well to a person, so the type is
+ * editorial and the palette is paper.
+ *
+ * Serif for everything textual; mono for counts, dates and labels. No UI
+ * sans at all — a third family would only blur the one distinction that
+ * carries meaning here: words versus data about words.
+ *
+ * Palette is "book brown + page amber", warmed and given a real dark ramp.
+ * The first version failed for one reason worth naming: it had a single ink
+ * colour, so every line on the page shouted equally and the eye had nowhere
+ * to land. There are now three ink levels and two surfaces.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.adm {
+  /* Dark unless the toggle says otherwise. The admin does NOT follow the OS:
+     a review session that flips theme underneath you mid-scroll is worse than
+     one that is simply always the colour you chose. */
+  color-scheme: dark;
+
+  /* ── Dark is the default; `[data-adm-theme='light']` below overrides ──
+     Written as two explicit sets rather than `light-dark()`, which cannot
+     be transitioned: it changes a value's *used* form while the computed
+     form stays the same `light-dark(...)` function, so the browser sees
+     nothing to interpolate and the whole page snaps. Custom properties
+     recompute, so the crossfade at the foot of this file works. ─────── */
+
+  /* Surfaces: two levels, so a card lifts off the page. */
+  --adm-ground: #17150f;
+  --adm-surface: #211d16;
+  --adm-sunk: #131109;
+
+  /* Ink: three levels. This is the hierarchy the first version lacked. */
+  --adm-ink: #f0e9dc;
+  --adm-ink-soft: #b3a996;
+  --adm-ink-faint: #7d7466;
+
+  --adm-rule: #322d23;
+  --adm-rule-soft: #262117;
+
+  /* Two hues, used sparingly. Amber approves; rust refuses. */
+  --adm-amber: #e0a45c;
+  --adm-amber-wash: #2c2215;
+  --adm-rust: #e2866b;
+  --adm-rust-wash: #2e1a14;
+
+  --adm-on-amber: #201a10;
+  --adm-rust-edge: #4a2e25;
+
+  --adm-lift: 0 1px 2px rgb(0 0 0 / 24%), 0 4px 12px rgb(0 0 0 / 18%);
+
+  --adm-serif: 'Source Serif 4', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --adm-mono: 'JetBrains Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
+
+  background: var(--adm-ground);
+  color: var(--adm-ink);
+  font-family: var(--adm-serif);
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.adm[data-adm-theme='light'] {
+  color-scheme: light;
+
+  --adm-ground: #fbf8f1;
+  --adm-surface: #ffffff;
+  --adm-sunk: #f4efe4;
+
+  --adm-ink: #26211b;
+  --adm-ink-soft: #6b6156;
+  --adm-ink-faint: #9a9085;
+
+  --adm-rule: #e8e1d2;
+  --adm-rule-soft: #f1ebdd;
+
+  --adm-amber: #a85c1e;
+  --adm-amber-wash: #f6ecdd;
+  --adm-rust: #b0452c;
+  --adm-rust-wash: #f9eae5;
+
+  --adm-on-amber: #fffdf9;
+  --adm-rust-edge: #e0c2b7;
+
+  --adm-lift: 0 1px 2px rgb(38 33 27 / 4%), 0 4px 12px rgb(38 33 27 / 4%);
+}
+
+.adm :focus-visible {
+  outline: 2px solid var(--adm-amber);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ── Structure ──────────────────────────────────────────────────────── */
+
+.adm-page {
+  margin: 0 auto;
+  max-width: 58rem;
+  padding: 2.5rem 1.5rem 6rem;
+}
+
+.adm-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.adm-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+/* Tabs carry the top level of navigation, so they are sized like it. */
+.adm-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--adm-rule);
+  margin: 1.75rem 0 2rem;
+}
+
+.adm-tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--adm-ink-faint);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.125rem;
+  margin-bottom: -1px;
+  padding: 0.5rem 1rem;
+  transition: color 180ms ease;
+}
+.adm-tab:hover {
+  color: var(--adm-ink-soft);
+}
+.adm-tab[aria-current='page'] {
+  border-bottom-color: var(--adm-amber);
+  color: var(--adm-ink);
+  font-weight: 600;
+}
+
+/* A section heading is a level above the content it introduces. */
+.adm-section {
+  align-items: baseline;
+  display: flex;
+  gap: 0.625rem;
+  justify-content: space-between;
+  margin: 0 0 0.875rem;
+}
+.adm-section > :first-child {
+  margin-right: auto;
+}
+
+.adm-page section + section {
+  display: block;
+  margin-top: 2.75rem;
+}
+.adm-h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/* Mono, tracked, faint: reads as data rather than prose, at any size. */
+.adm-meta {
+  color: var(--adm-ink-faint);
+  font-family: var(--adm-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────── */
+
+.adm-card {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule-soft);
+  border-radius: 10px;
+  box-shadow: var(--adm-lift);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.375rem 1.5rem;
+}
+.adm-card + .adm-card {
+  margin-top: 0.875rem;
+}
+.adm-card--returned {
+  border-color: var(--adm-amber);
+}
+
+.adm-row {
+  align-items: center;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule-soft);
+  border-radius: 8px;
+  box-shadow: var(--adm-lift);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  /* The chain takes the first line and the controls the second, so the gap
+     between them is a row-gap, not the 1rem used between inline items. */
+  row-gap: 0.375rem;
+  padding: 0.75rem 1.125rem 0.625rem;
+}
+.adm-row + .adm-row {
+  margin-top: 0.5rem;
+}
+
+/* ── The chain ──────────────────────────────────────────────────────── */
+
+/**
+ * A chain never breaks across lines.
+ *
+ * `flex-wrap: wrap` let a long chain drop its last word onto a second row,
+ * so `INTERVENTION … SMELL` put SMELL directly under INTERVENTION and the
+ * left-to-right reading — the only thing the reviewer is here to do — was
+ * lost. Which chains wrapped depended on their length, so the layout was
+ * also unpredictable from row to row.
+ *
+ * Measured on the real pool: the widest chain renders at 660px and a
+ * worst-case six twelve-letter words would need ~794px. A full row is 878px,
+ * so the chain fits whenever it has the row to itself — which is what
+ * `.adm-row > .adm-chain` below gives it. `overflow-x` is the last resort for
+ * a genuinely narrow window: scrolling a chain still reads left to right,
+ * wrapping it does not.
+ */
+.adm-chain {
+  align-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.125rem;
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+  scrollbar-color: var(--adm-rule) transparent;
+  scrollbar-width: thin;
+}
+.adm-chain::-webkit-scrollbar {
+  height: 4px;
+}
+.adm-chain::-webkit-scrollbar-thumb {
+  background: var(--adm-rule);
+  border-radius: 999px;
+}
+
+/* One word and the connector that follows it. */
+.adm-link {
+  align-items: center;
+  display: flex;
+}
+
+/* In a list row the chain takes the whole line and the controls sit beneath
+   it, right-aligned. Every row is then laid out identically, whatever the
+   chain's length -- the inconsistency was as bad as the wrapping. */
+.adm-row > .adm-chain,
+.adm-row > .adm-dated {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+.adm-row > .adm-cluster {
+  margin-left: auto;
+}
+
+.adm-word {
+  font-size: 1.0625rem;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+.adm-word--end {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.adm-chain--list .adm-word {
+  color: var(--adm-ink-soft);
+  font-size: 1rem;
+}
+.adm-chain--list .adm-word--end {
+  color: var(--adm-ink);
+  font-size: 1.0625rem;
+}
+
+.adm-word--edited {
+  text-decoration: underline dotted var(--adm-amber);
+  text-underline-offset: 5px;
+}
+
+/**
+ * The connector between two words.
+ *
+ * It used to render the edge weight as a number and a bar. Both are gone:
+ * the reviewer judges whether two words *read* as related, and the weight
+ * is a fact about ConceptNet that has no bearing on that judgement. What
+ * has to survive is the click target — `badLink` is the most valuable thing
+ * this tool collects — so the connector stays, as a rule you can press.
+ */
+.adm-rung {
+  appearance: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  padding: 0.75rem 0.3125rem;
+  position: relative;
+}
+.adm-rung::before {
+  background: var(--adm-rule);
+  border-radius: 1px;
+  content: '';
+  display: block;
+  height: 1.5px;
+  transition: background 160ms ease, height 160ms ease;
+  width: 1.375rem;
+}
+.adm-rung:hover::before {
+  background: var(--adm-ink-faint);
+}
+.adm-rung[aria-pressed='true']::before {
+  background: var(--adm-rust);
+  height: 3px;
+}
+.adm-rung--asserted::before {
+  background: var(--adm-amber);
+  height: 1.5px;
+  mask-image: repeating-linear-gradient(90deg, #000 0 3px, transparent 3px 6px);
+}
+.adm-rung--static {
+  cursor: default;
+  padding: 0.75rem 0.3125rem;
+}
+
+/* Controls in a list row sit on their own line, so they can afford to be a
+   little smaller than the ones on a review card where they are the action. */
+.adm-row .adm-btn {
+  font-size: 0.875rem;
+  padding: 0.3125rem 0.8125rem;
+}
+
+/* Small clusters of controls that sit at the end of a row. */
+.adm-cluster {
+  align-items: center;
+  display: flex;
+  gap: 0.375rem;
+}
+.adm-cluster--wide {
+  flex-basis: 100%;
+}
+.adm-cluster--gap {
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.adm-dated {
+  align-items: center;
+  display: flex;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.adm-dated > .adm-meta {
+  flex: 0 0 auto;
+}
+
+.adm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.adm-subhead {
+  color: var(--adm-ink-faint);
+  font-family: var(--adm-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  margin: 0.5rem 0 0;
+}
+
+.adm-lead {
+  color: var(--adm-ink-soft);
+  font-size: 0.9375rem;
+  margin: 0 0 0.5rem;
+}
+
+/* A section header that is already inside a panel needs no outer margin. */
+.adm-section--tight {
+  margin: 0;
+}
+
+/* ── Tiles ──────────────────────────────────────────────────────────── */
+
+.adm-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.adm-tile {
+  background: var(--adm-sunk);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--adm-ink-soft);
+  font-size: 0.9375rem;
+  padding: 0.1875rem 0.5rem;
+}
+
+/* ── Controls ───────────────────────────────────────────────────────── */
+
+.adm-actions {
+  align-items: center;
+  border-top: 1px solid var(--adm-rule-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 1rem;
+}
+
+.adm-btn {
+  appearance: none;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule);
+  border-radius: 6px;
+  color: var(--adm-ink);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: 0.4375rem 0.9375rem;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.adm-btn:hover:not(:disabled) {
+  background: var(--adm-sunk);
+}
+.adm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.adm-btn--go {
+  background: var(--adm-amber);
+  border-color: var(--adm-amber);
+  color: var(--adm-on-amber);
+  font-weight: 600;
+}
+.adm-btn--go:hover:not(:disabled) {
+  background: var(--adm-amber);
+  filter: brightness(1.08);
+}
+
+.adm-btn--no {
+  border-color: var(--adm-rust-edge);
+  color: var(--adm-rust);
+}
+.adm-btn--no:hover:not(:disabled) {
+  background: var(--adm-rust-wash);
+}
+
+/* The theme toggle. A button, because it does something — the bare word read
+   as a label you could not press. */
+.adm-btn--theme {
+  color: var(--adm-ink-soft);
+  font-size: 0.875rem;
+  letter-spacing: 0.02em;
+  padding: 0.375rem 0.9375rem;
+}
+.adm-btn--theme:hover:not(:disabled) {
+  background: var(--adm-amber-wash);
+  border-color: var(--adm-amber);
+  color: var(--adm-amber);
+}
+.adm-btn--theme:active {
+  transform: translateY(0.5px);
+}
+
+.adm-btn--tiny {
+  padding-inline: 0.25rem;
+}
+
+.adm-btn--quiet {
+  background: none;
+  border-color: transparent;
+  color: var(--adm-ink-soft);
+  padding-inline: 0.5rem;
+}
+.adm-btn--quiet:hover:not(:disabled) {
+  background: var(--adm-sunk);
+  color: var(--adm-ink);
+}
+
+.adm-input {
+  background: var(--adm-ground);
+  border: 1px solid var(--adm-rule);
+  border-radius: 6px;
+  color: var(--adm-ink);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: 0.4375rem 0.75rem;
+}
+.adm-input::placeholder {
+  color: var(--adm-ink-faint);
+}
+.adm-input--word {
+  background: var(--adm-surface);
+  padding: 0.25rem 0.5rem;
+}
+.adm-input--grow {
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+
+/* ── Messages ───────────────────────────────────────────────────────── */
+
+.adm-note {
+  color: var(--adm-ink-soft);
+  font-size: 0.9375rem;
+}
+.adm-refusal {
+  background: var(--adm-rust-wash);
+  border-radius: 6px;
+  color: var(--adm-rust);
+  font-size: 0.9375rem;
+  padding: 0.5rem 0.75rem;
+}
+.adm-asserted {
+  color: var(--adm-amber);
+  font-size: 0.9375rem;
+}
+
+.adm-panel {
+  background: var(--adm-sunk);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1rem 1.125rem;
+}
+
+.adm-empty {
+  color: var(--adm-ink-faint);
+  font-size: 1.0625rem;
+  padding: 3rem 0;
+  text-align: center;
+}
+
+/* ── Progress: one number, set quietly ──────────────────────────────── */
+
+.adm-progress {
+  align-items: center;
+  display: flex;
+  gap: 0.875rem;
+  margin-bottom: 2.25rem;
+}
+.adm-progress-track {
+  background: var(--adm-rule-soft);
+  border-radius: 999px;
+  flex: 1;
+  height: 2px;
+  overflow: hidden;
+}
+.adm-progress-fill {
+  background: var(--adm-amber);
+  display: block;
+  height: 100%;
+}
+
+/* ── Day chips ──────────────────────────────────────────────────────── */
+
+.adm-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.adm-day {
+  appearance: none;
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-rule);
+  border-radius: 6px;
+  color: var(--adm-ink-soft);
+  cursor: pointer;
+  font-family: var(--adm-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.3125rem 0.5625rem;
+  transition: background 160ms ease, color 160ms ease;
+}
+.adm-day:hover:not(:disabled) {
+  background: var(--adm-amber-wash);
+  color: var(--adm-ink);
+}
+.adm-day--static {
+  cursor: default;
+}
+
+/**
+ * Flipping the theme rewrites every `--adm-*` custom property at once, and
+ * each one feeds a `background-color`, `color` or `border-color` that then
+ * recomputes. Transitioning those four properties turns what would be a hard
+ * snap across the whole window into a crossfade.
+ *
+ * Declared last so it governs everything, including elements whose own rules
+ * set a shorter hover transition -- they animate the same properties, so the
+ * only effect is that hovers now share one timing.
+ */
+.adm,
+.adm *,
+.adm *::before {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 260ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* The connector also animates its thickness when you blame a link, and the
+   progress bar its width. Neither is a colour, so both are stated here. */
+.adm-rung::before {
+  transition-property: background-color, height;
+  transition-duration: 160ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm,
+  .adm *,
+  .adm *::before {
+    transition-duration: 1ms !important;
+  }
+}

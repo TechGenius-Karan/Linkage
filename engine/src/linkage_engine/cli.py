@@ -23,7 +23,7 @@ from .data import codec, conceptnet, exporters, graph_store
 from .data.pos import make_pos_checker
 from .data.stemming import PorterStemmerAdapter
 from .data.vocabulary import build_vocabulary
-from .domain import corpus, decisions as decisions_mod, graph_builder, hubs
+from .domain import corpus, decisions as decisions_mod, graph_builder, hubs, refine
 from .domain.distractors import DistractorSelector
 from .domain.generator import CandidateGenerator
 from .domain.models import Candidate, Path as ChainPath
@@ -40,24 +40,42 @@ def _load_graph(cfg: Config) -> nx.Graph:
     return graph
 
 
-def _candidate_from_dict(row: dict, bank: tuple[str, ...] | None = None) -> Candidate:
+def _candidate_from_dict(
+    row: dict,
+    decision: decisions_mod.Decision | None = None,
+    graph: nx.Graph | None = None,
+) -> Candidate:
     """Rehydrate a candidate from candidates.json for export.
 
-    `bank` overrides the generated one, which is how a hand-refined puzzle
-    ships (planning.md 16.4): the swaps live on the decision and are replayed
-    here, because `candidates.json` is keyed by a hash that covers the bank and
-    rewriting it in place would orphan the decision holding the edit.
+    A decision's hand edits are replayed here, not written back into
+    `candidates.json` (docs/admin.md 5.1, 11.1): the file is keyed by a hash
+    covering the endpoints, the solution and the bank, so rewriting any of them
+    in place would orphan the decision holding the edit.
+
+    When an edit moved a word, the stored weights describe rungs that no longer
+    exist, so the path is rebuilt from the graph the puzzle actually has --
+    including any link the reviewer asserted. `hints.obviousness()` ranks answer
+    words by those weights, so stale numbers would offer the wrong hints.
     """
-    path = ChainPath(
-        start=row["start"],
-        end=row["end"],
-        steps=tuple(row["solution"]),
-        weights=tuple(row["weights"]),
-        relations=tuple(tuple(r) for r in row["relations"]),
+    edits = decision.bank_edits if decision is not None else ()
+    edges = decision.manual_edges if decision is not None else ()
+    puzzle = decisions_mod.apply_puzzle_edits(
+        row["start"], row["end"], row["solution"], row["bank"], edits
     )
+
+    if (edits or edges) and graph is not None:
+        path = refine.effective_path(graph, puzzle, edges)
+    else:
+        path = ChainPath(
+            start=puzzle.start,
+            end=puzzle.end,
+            steps=puzzle.solution,
+            weights=tuple(row["weights"]),
+            relations=tuple(tuple(r) for r in row["relations"]),
+        )
     return Candidate(
         path=path,
-        bank=bank if bank is not None else tuple(row["bank"]),
+        bank=puzzle.bank,
         quality=row["quality"],
         score_breakdown=tuple(sorted(row.get("scores", {}).items())),
     )
@@ -563,6 +581,32 @@ def review(
         )
 
 
+def _asserted_edges(cfg: Config) -> list[tuple[str, str, float]]:
+    """Every link a reviewer asserted, across the whole archive.
+
+    Gathered from decisions rather than from the puzzle files, because the
+    puzzle files deliberately carry no provenance -- a player has no use for
+    it, and it is payload weight (planning.md 3.1).
+    """
+    seen: dict[tuple[str, str], float] = {}
+    for decision in exporters.read_decisions(cfg.decisions_path).values():
+        if decision.verdict != review_ui.ACCEPT:
+            continue
+        for first, second, weight in decision.manual_edges:
+            seen.setdefault(tuple(sorted((first, second))), weight)  # type: ignore[arg-type]
+    return [(a, b, w) for (a, b), w in sorted(seen.items())]
+
+
+def _has_asserted_link(decisions: dict, rows: dict, candidate: Candidate) -> bool:
+    target = candidate.content_hash()
+    for hash_, decision in decisions.items():
+        if hash_ in rows and decision.manual_edges:
+            replayed = _candidate_from_dict(rows[hash_], decision)
+            if replayed.content_hash() == target:
+                return True
+    return False
+
+
 @app.command()
 def export(
     count: Annotated[
@@ -610,8 +654,11 @@ def export(
             raise typer.Exit(1) from exc
         typer.secho(f"  PASS -- {report.summary()}", fg=typer.colors.GREEN)
         exporters.write_manifest(cfg, archive)
-        subgraph = exporters.write_verification_subgraph(cfg, graph, archive)
+        asserted = _asserted_edges(cfg)
+        subgraph = exporters.write_verification_subgraph(cfg, graph, archive, asserted)
         typer.echo(f"  refreshed manifest.json and {subgraph.name}")
+        if asserted:
+            typer.echo(f"  carried {len(asserted)} hand-authored link(s) through")
         typer.secho("\nNext:  pytest", fg=typer.colors.GREEN)
         raise typer.Exit(0)
 
@@ -627,10 +674,7 @@ def export(
     decisions = exporters.read_decisions(cfg.decisions_path)
 
     def hydrate(hash_: str) -> Candidate:
-        row = rows[hash_]
-        return _candidate_from_dict(
-            row, bank=decisions_mod.apply_edits(row["bank"], decisions[hash_].bank_edits)
-        )
+        return _candidate_from_dict(rows[hash_], decisions[hash_], graph)
 
     accepted = [
         h
@@ -769,7 +813,8 @@ def export(
     written = exporters.write_puzzles(cfg, fresh)
     exporters.write_manifest(cfg, archive)
     exporters.write_licence_notice(cfg)
-    subgraph = exporters.write_verification_subgraph(cfg, graph, archive)
+    asserted = _asserted_edges(cfg)
+    subgraph = exporters.write_verification_subgraph(cfg, graph, archive, asserted)
     codec.write_fixture(cfg.codec_fixture_path)
 
     typer.echo(f"  {len(written):,} new per-day files -> {cfg.puzzles_dir}")
@@ -781,6 +826,14 @@ def export(
 
     _echo_header("Result")
     typer.echo(f"  added     {len(fresh):,}")
+    hand = sum(1 for c in batched if _has_asserted_link(decisions, rows, c))
+    if hand:
+        # A number nobody sees is a number nobody checks (docs/admin.md 11.2).
+        typer.secho(
+            f"  {hand} of {len(batched)} ship a link asserted by the reviewer, "
+            "not by ConceptNet.",
+            fg=typer.colors.YELLOW,
+        )
     typer.echo(f"  archive   {len(archive):,}  of an eventual {cfg.target_approved}")
     typer.echo(f"  covers    {archive[0].date}  ->  {archive[-1].date}")
     remaining = cfg.target_approved - len(archive)

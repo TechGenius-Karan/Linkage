@@ -260,3 +260,35 @@ class TestApplyEdits:
         decision = d.approve(TODAY, edits=edits)
         assert decision.bank_edits == edits
         assert d.from_json(d.to_json(decision)).bank_edits == edits
+
+
+class TestEveryVerdictSurvivesTheFile:
+    """A verdict that writes but cannot be read back makes `decisions.json`
+    unloadable -- and that file is durable human judgement, not a cache.
+
+    Parametrised over the whole `Verdict` union rather than listing the ones
+    that exist today: `revisit` was added to the union, to `__post_init__` and
+    to the transitions, but not to the *parser*, and every hand-written test
+    passed while the tool could not reload its own output.
+    """
+
+    @pytest.mark.parametrize("verdict", [d.ACCEPT, d.REJECT, d.REVISIT])
+    def test_round_trips(self, verdict):
+        built = {
+            d.ACCEPT: lambda: d.approve(TODAY),
+            d.REJECT: lambda: d.reject(TODAY, reason="mush"),
+            d.REVISIT: lambda: d.revisit(TODAY, d.approve(TODAY)),
+        }[verdict]()
+        assert d.from_json(d.to_json(built)) == built
+
+    def test_the_union_and_the_parser_agree(self):
+        # The actual defect: three places knew about `revisit` and the fourth
+        # did not. This fails the moment they diverge again.
+        from typing import get_args
+
+        for verdict in get_args(d.Verdict):
+            assert d._verdict(verdict) == verdict
+
+    def test_an_unknown_verdict_is_still_refused(self):
+        with pytest.raises(d.DecisionError, match="unknown verdict"):
+            d.from_json({"verdict": "maybe"})

@@ -1,24 +1,28 @@
 /**
- * The approved pool, and choosing a date (planning.md 16.2, 16.6).
+ * The approved pool, and choosing a date (docs/admin.md 2, 7, 8, 12.2).
  *
- * Approving records taste; scheduling is a separate act. This is the screen
- * where the second one happens, and the whole reason the decision record
- * carries `date: null` until somebody deliberately fills it in.
+ * Approving records taste; scheduling is a separate act. This is where the
+ * second one happens, and the whole reason a decision carries `date: null`
+ * until somebody deliberately fills it in.
  *
  * Dates are offered as a **run of slots**, not a date picker. The archive's one
  * hard invariant is `date == epoch + (id - 1)` days, so a puzzle occupies a day
  * in an unbroken sequence — a free-form picker would let a reviewer punch a
  * hole that export could never fill.
+ *
+ * The header used to carry three counts nobody asked for ("30 free in the run",
+ * "1 shipped · through 2026-10-01"). They are gone: the days themselves say how
+ * many are free, and what already shipped is the Upcoming screen's business.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchPool,
   schedulePuzzle,
-  unschedulePuzzle,
-  type PoolPuzzle,
+  sendBackPuzzle,
   type PoolResponse,
 } from './adminClient';
+import { Ladder } from './Ladder';
 
 type Load =
   | { kind: 'loading' }
@@ -26,7 +30,7 @@ type Load =
   | { kind: 'error'; message: string };
 
 export interface PoolPageProps {
-  /** Refresh the queue counts in the header, which a schedule changes. */
+  /** Refresh the header counts, which scheduling and sending back both change. */
   onChanged: () => void;
 }
 
@@ -35,7 +39,8 @@ export function PoolPage({ onChanged }: PoolPageProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
-  /** Corpus warnings from the last schedule — 16.6's whole point. */
+  const [showAllDays, setShowAllDays] = useState(false);
+  /** Corpus warnings from the last schedule — docs/admin.md 7's whole point. */
   const [warnings, setWarnings] = useState<{ date: string; lines: string[] } | null>(null);
 
   const refresh = useCallback(async () => {
@@ -62,148 +67,143 @@ export function PoolPage({ onChanged }: PoolPageProps) {
     }
   };
 
-  if (load.kind === 'loading') return <p className="text-ink-muted">Loading the pool…</p>;
-  if (load.kind === 'error') return <p className="text-[15px] text-heart">{load.message}</p>;
+  if (load.kind === 'loading') return <p className="adm-empty">Loading the pool…</p>;
+  if (load.kind === 'error') return <p className="adm-refusal">{load.message}</p>;
 
-  const { scheduled, pooled, slots, archive } = load.data;
-  const free = slots.filter((slot) => slot.hash === null);
+  const { pooled, slots, openDays } = load.data;
+  const free = slots.filter((s) => s.hash === null);
+  const offered = showAllDays ? free.map((s) => s.date) : openDays;
 
   return (
-    <div className="flex flex-col gap-5">
-      <p className="text-xs text-ink-muted">
-        {archive.count} shipped
-        {archive.lastDate !== null ? `, through ${archive.lastDate}` : ''} · next slot{' '}
-        {archive.nextDate}
-      </p>
-
-      {error !== null && (
-        <p className="rounded-lg border border-heart bg-heart/10 px-3 py-2 text-[13px] text-heart">
-          {error}
-        </p>
-      )}
+    <div>
+      {error !== null && <p className="adm-refusal">{error}</p>}
 
       {warnings !== null && (
-        <div className="rounded-lg border border-rule bg-surface px-3 py-2 text-[13px]">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="font-medium">Scheduled for {warnings.date}</span>
+        <div className="adm-panel">
+          <div className="adm-section adm-section--tight">
+            <h2 className="adm-h2">Scheduled for {format(warnings.date)}</h2>
             <button
               type="button"
+              className="adm-btn adm-btn--quiet"
               onClick={() => setWarnings(null)}
-              className="ring-focus rounded-md px-1.5 text-xs underline"
             >
               Dismiss
             </button>
           </div>
           {warnings.lines.length === 0 ? (
-            <p className="mt-1 text-xs text-ink-muted">No corpus warnings on that day.</p>
+            <p className="adm-note">Nothing clashes on that day.</p>
           ) : (
-            <ul className="mt-1 flex flex-col gap-0.5 text-xs text-heart">
-              {warnings.lines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
+            warnings.lines.map((line) => (
+              <p key={line} className="adm-refusal">
+                {line}
+              </p>
+            ))
           )}
         </div>
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold">On the calendar ({scheduled.length})</h2>
-        {scheduled.length === 0 ? (
-          <p className="text-[13px] text-ink-muted">
-            Nothing scheduled. Export will propose dates for the pool below.
-          </p>
+        <div className="adm-section">
+          <h2 className="adm-h2">Next open days</h2>
+        </div>
+        {openDays.length === 0 ? (
+          <p className="adm-note">Every day in the run is taken.</p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
-            {scheduled.map((puzzle) => (
-              <li
-                key={puzzle.hash}
-                className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-surface px-3 py-2"
-              >
-                <span className="flex items-baseline gap-2">
-                  <span className="text-xs tabular-nums text-ink-muted">{puzzle.date}</span>
-                  <Ladder puzzle={puzzle} />
-                </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void act(() => unschedulePuzzle(puzzle.hash))}
-                  className="ring-focus shrink-0 rounded-md px-2 py-1 text-xs underline disabled:opacity-40"
-                >
-                  Unschedule
-                </button>
-              </li>
+          <div className="adm-days">
+            {openDays.map((day) => (
+              <span key={day} className="adm-day adm-day--static">
+                {format(day)}
+              </span>
             ))}
-          </ul>
+          </div>
         )}
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold">Approved, waiting for a date ({pooled.length})</h2>
+        <div className="adm-section">
+          <h2 className="adm-h2">Waiting for a date</h2>
+          <span className="adm-meta">{pooled.length}</span>
+        </div>
         {pooled.length === 0 ? (
-          <p className="text-[13px] text-ink-muted">
-            The pool is empty. Approve some candidates in the queue.
-          </p>
+          <p className="adm-empty">Nothing approved yet.</p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
-            {pooled.map((puzzle) => (
-              <li
-                key={puzzle.hash}
-                className="flex flex-col gap-2 rounded-lg border border-rule bg-surface px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <Ladder puzzle={puzzle} />
-                  <button
-                    type="button"
-                    disabled={busy || free.length === 0}
-                    onClick={() => setPicking(picking === puzzle.hash ? null : puzzle.hash)}
-                    aria-expanded={picking === puzzle.hash}
-                    title={free.length === 0 ? 'Every slot in the run is taken' : undefined}
-                    className="ring-focus shrink-0 rounded-md border border-rule px-2 py-1 text-xs disabled:opacity-40"
-                  >
-                    Schedule
-                  </button>
-                </div>
-                {picking === puzzle.hash && (
-                  <div className="flex flex-wrap gap-1">
-                    {free.map((slot) => (
-                      <button
-                        key={slot.date}
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void act(async () => {
-                            const result = await schedulePuzzle(puzzle.hash, slot.date);
-                            setWarnings({ date: result.date, lines: result.warnings });
-                            setPicking(null);
-                          })
-                        }
-                        className="ring-focus rounded-md border border-rule px-2 py-1 text-xs tabular-nums disabled:opacity-40 hover:bg-accent-sub"
-                      >
-                        {slot.date.slice(5)}
-                      </button>
-                    ))}
-                  </div>
+          pooled.map((puzzle) => (
+            <article key={puzzle.hash} className="adm-row">
+              <Ladder
+                chain={puzzle.chain}
+                weights={puzzle.linkWeights}
+                relations={puzzle.relations}
+                edits={puzzle.bankEdits}
+                tone="list"
+              />
+              <div className="adm-cluster">
+                {puzzle.manualEdges.length > 0 && (
+                  <span className="adm-meta" title="Ships a link you asserted">
+                    {puzzle.manualEdges.length} asserted
+                  </span>
                 )}
-              </li>
-            ))}
-          </ul>
+                <button
+                  type="button"
+                  className="adm-btn"
+                  disabled={busy || free.length === 0}
+                  onClick={() => setPicking(picking === puzzle.hash ? null : puzzle.hash)}
+                  aria-expanded={picking === puzzle.hash}
+                  title={free.length === 0 ? 'Every slot in the run is taken' : undefined}
+                >
+                  Schedule
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--quiet"
+                  disabled={busy}
+                  onClick={() => void act(() => sendBackPuzzle(puzzle.hash))}
+                  title="Back to the review queue, into its own lane"
+                >
+                  Send back
+                </button>
+              </div>
+
+              {picking === puzzle.hash && (
+                <div className="adm-days adm-cluster--wide">
+                  {offered.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      className="adm-day"
+                      disabled={busy}
+                      onClick={() =>
+                        void act(async () => {
+                          const result = await schedulePuzzle(puzzle.hash, day);
+                          setWarnings({ date: result.date, lines: result.warnings });
+                          setPicking(null);
+                        })
+                      }
+                    >
+                      {format(day)}
+                    </button>
+                  ))}
+                  {free.length > offered.length && (
+                    <button
+                      type="button"
+                      className="adm-btn adm-btn--quiet"
+                      onClick={() => setShowAllDays(true)}
+                    >
+                      {free.length - offered.length} more
+                    </button>
+                  )}
+                </div>
+              )}
+            </article>
+          ))
         )}
       </section>
     </div>
   );
 }
 
-function Ladder({ puzzle }: { puzzle: PoolPuzzle }) {
-  return (
-    <span className="font-word text-[13px]">
-      <span className="font-semibold uppercase">{puzzle.start}</span>
-      <span className="text-ink-muted"> → {puzzle.solution.join(' → ')} → </span>
-      <span className="font-semibold uppercase">{puzzle.end}</span>
-      {puzzle.bankEdits.length > 0 && (
-        <span className="ml-1.5 text-xs text-accent">
-          ({puzzle.bankEdits.length} swap{puzzle.bankEdits.length === 1 ? '' : 's'})
-        </span>
-      )}
-    </span>
-  );
+/** `2026-10-04` → `4 Oct`. A reviewer picks a day, not an ISO string. */
+export function format(date: string): string {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return `${parsed.getDate()} ${parsed.toLocaleString('en', { month: 'short' })}`;
 }

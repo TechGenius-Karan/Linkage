@@ -11,8 +11,10 @@
  */
 
 import type { ProgressStore } from '../engine/ports';
-import { emptyStats } from '../engine/stats';
-import { MAX_ATTEMPTS, type GameState, type Stats } from '../engine/types';
+import { emptyStats, TIME_BUCKETS_MS } from '../engine/stats';
+import type { GameState, Stats } from '../engine/types';
+
+const DISTRIBUTION_LENGTH = TIME_BUCKETS_MS.length + 1;
 
 export { emptyStats };
 
@@ -31,7 +33,14 @@ function isGameState(v: unknown): v is GameState {
     typeof s['puzzleId'] === 'number' &&
     Array.isArray(s['slots']) &&
     Array.isArray(s['attempts']) &&
-    (s['status'] === 'playing' || s['status'] === 'won' || s['status'] === 'lost')
+    (s['status'] === 'playing' || s['status'] === 'won') &&
+    // A pre-timer-model save (before §2.5.1) has none of these; loading it
+    // as-is would compute elapsedMs as NaN rather than fail loudly.
+    typeof s['startedAt'] === 'number' &&
+    (s['pausedAt'] === null || typeof s['pausedAt'] === 'number') &&
+    typeof s['totalPausedMs'] === 'number' &&
+    typeof s['hintPenaltyMs'] === 'number' &&
+    (s['finishedAt'] === null || typeof s['finishedAt'] === 'number')
   );
 }
 
@@ -40,9 +49,10 @@ function isStats(v: unknown): v is Stats {
   const s = v as Record<string, unknown>;
   return (
     typeof s['gamesPlayed'] === 'number' &&
-    typeof s['wins'] === 'number' &&
     typeof s['currentStreak'] === 'number' &&
     typeof s['maxStreak'] === 'number' &&
+    (s['bestTimeMs'] === null || typeof s['bestTimeMs'] === 'number') &&
+    typeof s['totalTimeMs'] === 'number' &&
     Array.isArray(s['distribution'])
   );
 }
@@ -102,11 +112,11 @@ export class LocalStorageProgressStore implements ProgressStore {
     const stats = this.parse(this.read(STATS_KEY), isStats);
     if (stats === null) return emptyStats();
     // A distribution of the wrong length would break the histogram if
-    // MAX_ATTEMPTS ever changes — which planning.md 2.5.1 says it will.
-    if (stats.distribution.length !== MAX_ATTEMPTS) {
-      const fixed = Array<number>(MAX_ATTEMPTS).fill(0);
+    // TIME_BUCKETS_MS ever changes — which planning.md 2.5.2 says it will.
+    if (stats.distribution.length !== DISTRIBUTION_LENGTH) {
+      const fixed = Array<number>(DISTRIBUTION_LENGTH).fill(0);
       stats.distribution.forEach((n, i) => {
-        if (i < MAX_ATTEMPTS) fixed[i] = typeof n === 'number' ? n : 0;
+        if (i < DISTRIBUTION_LENGTH) fixed[i] = typeof n === 'number' ? n : 0;
       });
       stats.distribution = fixed;
     }

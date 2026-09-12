@@ -1,162 +1,126 @@
 /**
- * One candidate, judged (planning.md 16.2).
+ * One candidate, judged (docs/admin.md 2, 10).
  *
- * The ladder is rendered with its **links between the words**, and each link is
- * a button. That is the whole design: round 1's most useful finding was that a
- * single bad rung ruined otherwise-good chains, and a rung index can be
- * aggregated across a hundred verdicts where free text cannot.
+ * The card used to open with `BOMB → DARK` as a heading and then print the
+ * whole chain immediately below, starting with BOMB and ending with DARK. The
+ * heading said nothing the next line did not. It is gone, and so are the
+ * content hash and the quality score — neither is something a person reads a
+ * chain against.
  *
  * Approve and Reject are separate outcomes and always will be. A sibling
- * project merged "fix this" into "reject" once and lost puzzles to it.
+ * project merged "fix this" into "reject" once and lost puzzles to it — which
+ * is also why editing is its own panel rather than a kind of rejection.
  */
 
 import { useState } from 'react';
-import type { BankEdit, QueuePuzzle } from './adminClient';
-import { BankEditor } from './BankEditor';
+import type { EditResponse, ManualEdge, QueuePuzzle, WordEdit } from './adminClient';
+import { Ladder } from './Ladder';
+import { PuzzleEditor } from './PuzzleEditor';
 
 export interface ReviewCardProps {
   puzzle: QueuePuzzle;
   busy: boolean;
-  onApprove: (edits: BankEdit[]) => void;
+  /** Approved once, then pulled back for another look (docs/admin.md 12.1). */
+  returned?: boolean;
+  onApprove: (edits: WordEdit[], edges: ManualEdge[]) => void;
   onReject: (reason: string, badLink: number | null) => void;
 }
 
-export function ReviewCard({ puzzle, busy, onApprove, onReject }: ReviewCardProps) {
+export function ReviewCard({
+  puzzle,
+  busy,
+  returned = false,
+  onApprove,
+  onReject,
+}: ReviewCardProps) {
   const [reason, setReason] = useState('');
   const [badLink, setBadLink] = useState<number | null>(null);
-  /** Hand swaps, held here until the puzzle is approved (planning.md 16.4). */
-  const [edits, setEdits] = useState<BankEdit[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [edits, setEdits] = useState<WordEdit[]>(puzzle.bankEdits);
+  const [edges, setEdges] = useState<ManualEdge[]>(puzzle.manualEdges);
+  const [state, setState] = useState<EditResponse | null>(null);
 
   const canReject = reason.trim().length > 0;
+  const blocked = (state?.refusals.length ?? 0) > 0;
+  const chain = state?.chain ?? puzzle.chain;
 
   return (
-    <article className="flex flex-col gap-4 rounded-xl border border-rule bg-surface p-5">
-      <header className="flex items-baseline justify-between gap-3">
-        <h2 className="font-word text-lg font-semibold">
-          {puzzle.start.toUpperCase()} → {puzzle.end.toUpperCase()}
-        </h2>
-        <span className="text-xs text-ink-muted">
-          {puzzle.quality === null ? '' : `quality ${puzzle.quality.toFixed(2)} · `}
-          {puzzle.hash.slice(0, 8)}
-        </span>
-      </header>
-
-      <div className="flex flex-col gap-1">
-        <p className="text-xs text-ink-muted">
-          Click a link to mark it as the one that fails.
-        </p>
-        <ol className="flex flex-col">
-          {puzzle.chain.map((word, i) => (
-            <li key={`${word}-${i}`} className="flex flex-col">
-              <span
-                className={`font-word text-[17px] ${
-                  i === 0 || i === puzzle.chain.length - 1
-                    ? 'font-semibold uppercase tracking-wide'
-                    : ''
-                }`}
-              >
-                {word}
-              </span>
-              {i < puzzle.chain.length - 1 && (
-                <LinkButton
-                  index={i}
-                  weight={puzzle.linkWeights[i]}
-                  relations={puzzle.relations[i]}
-                  selected={badLink === i}
-                  from={word}
-                  to={puzzle.chain[i + 1] ?? ''}
-                  onToggle={() => setBadLink(badLink === i ? null : i)}
-                />
-              )}
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <BankEditor
-        hash={puzzle.hash}
-        bank={puzzle.bank}
-        solution={puzzle.solution}
+    <article className={`adm-card${returned ? ' adm-card--returned' : ''}`}>
+      <Ladder
+        chain={chain}
+        weights={puzzle.linkWeights}
+        relations={puzzle.relations}
+        asserted={state?.assertedLinks ?? []}
+        badLink={badLink}
+        onMarkLink={(i) => setBadLink(badLink === i ? null : i)}
         edits={edits}
-        onChange={setEdits}
-        disabled={busy}
       />
 
-      <div className="flex flex-col gap-2 border-t border-rule pt-4">
-        <textarea
+      {!editing && (
+        <div className="adm-tiles">
+          {(state?.decoys ?? puzzle.decoys).map((word) => (
+            <span key={word} className="adm-tile">
+              {word}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {editing && (
+        <PuzzleEditor
+          puzzle={puzzle}
+          edits={edits}
+          edges={edges}
+          state={state}
+          disabled={busy}
+          onChange={(nextEdits, nextEdges, nextState) => {
+            setEdits(nextEdits);
+            setEdges(nextEdges);
+            setState(nextState);
+          }}
+        />
+      )}
+
+      <div className="adm-actions">
+        <button
+          type="button"
+          className="adm-btn adm-btn--go"
+          onClick={() => onApprove(edits, edges)}
+          disabled={busy || blocked}
+          title={blocked ? 'Resolve the refusal first' : undefined}
+        >
+          Approve
+        </button>
+        <button
+          type="button"
+          className="adm-btn adm-btn--no"
+          onClick={() => onReject(reason.trim(), badLink)}
+          disabled={busy || !canReject}
+          title={canReject ? undefined : 'A rejection needs a reason'}
+        >
+          Reject
+        </button>
+        <button
+          type="button"
+          className="adm-btn"
+          onClick={() => setEditing(!editing)}
+          disabled={busy}
+          aria-expanded={editing}
+        >
+          {editing ? 'Done' : 'Edit'}
+        </button>
+        <input
+          className="adm-input adm-input--grow"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          rows={2}
-          placeholder="Why is this wrong? Required to reject — it is what rebuilds the scorer."
-          className="ring-focus w-full resize-y rounded-lg border border-rule bg-ground px-3 py-2 text-[13px]"
+          aria-label="Why this puzzle fails"
+          placeholder={
+            badLink === null
+              ? 'Why does it fail? Click a link above to say where.'
+              : `Why does ${chain[badLink]} → ${chain[badLink + 1]} fail?`
+          }
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onApprove(edits)}
-            disabled={busy}
-            className="ring-focus rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-ground disabled:opacity-40"
-          >
-            Approve
-          </button>
-          <button
-            type="button"
-            onClick={() => onReject(reason.trim(), badLink)}
-            disabled={busy || !canReject}
-            title={canReject ? undefined : 'A rejection needs a reason'}
-            className="ring-focus rounded-lg border border-heart px-4 py-2 text-[13px] font-semibold text-heart disabled:opacity-40"
-          >
-            Reject
-          </button>
-          {badLink !== null && (
-            <span className="text-xs text-ink-muted">
-              link {badLink + 1} marked · {puzzle.chain[badLink]} → {puzzle.chain[badLink + 1]}
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-ink-muted">
-          Approving records taste. It does not schedule anything
-          {edits.length > 0 ? ' — the swaps are stored with it' : ''}.
-        </p>
       </div>
     </article>
-  );
-}
-
-interface LinkButtonProps {
-  index: number;
-  weight: number | undefined;
-  relations: string[] | undefined;
-  selected: boolean;
-  from: string;
-  to: string;
-  onToggle: () => void;
-}
-
-function LinkButton({
-  index,
-  weight,
-  relations,
-  selected,
-  from,
-  to,
-  onToggle,
-}: LinkButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={selected}
-      aria-label={`Mark link ${index + 1}, ${from} to ${to}, as the weak one`}
-      className={`ring-focus my-0.5 flex w-fit items-center gap-2 rounded-md px-2 py-0.5 text-left text-xs ${
-        selected ? 'bg-heart/15 text-heart' : 'text-ink-muted hover:bg-accent-sub'
-      }`}
-    >
-      <span aria-hidden="true">↓</span>
-      <span>{weight === undefined ? '—' : weight.toFixed(1)}</span>
-      {relations !== undefined && relations.length > 0 && (
-        <span className="opacity-70">{relations.join('/')}</span>
-      )}
-    </button>
   );
 }
