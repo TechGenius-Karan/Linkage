@@ -102,7 +102,7 @@ export function PuzzleEditor({
 
   return (
     <div className="adm-panel">
-      <div className="adm-section" style={{ margin: 0 }}>
+      <div className="adm-section adm-section--tight">
         <span className="adm-note">Rewrite any word — your judgement decides.</span>
         {changes > 0 && (
           <button
@@ -141,7 +141,7 @@ export function PuzzleEditor({
 
       <div className="adm-tiles">
         {decoys.map((word) => (
-          <span key={word} style={{ display: 'flex', alignItems: 'center' }}>
+          <span key={word} className="adm-cluster">
             <WordInput
               value={word}
               disabled={disabled || busy}
@@ -149,8 +149,7 @@ export function PuzzleEditor({
             />
             <button
               type="button"
-              className="adm-btn adm-btn--quiet"
-              style={{ padding: '0 0.25rem' }}
+              className="adm-btn adm-btn--quiet adm-btn--tiny"
               disabled={disabled || busy}
               onClick={() => void openSwaps(word)}
               aria-expanded={openDecoy === word}
@@ -165,7 +164,7 @@ export function PuzzleEditor({
 
       {openDecoy !== null && (
         <div>
-          <p className="adm-note" style={{ marginBottom: '0.5rem' }}>
+          <p className="adm-lead">
             Proved replacements for <em>{openDecoy}</em>:
           </p>
           {options === null && <p className="adm-meta">proving…</p>}
@@ -199,10 +198,7 @@ export function PuzzleEditor({
       {/* A missing rung is a refusal the reviewer can answer, so it arrives
           with the answer attached rather than as prose to act on later. */}
       {(state?.brokenLinks ?? []).map((i) => (
-        <div
-          key={`gap-${i}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}
-        >
+        <div key={`gap-${i}`} className="adm-cluster adm-cluster--gap">
           <span className="adm-refusal">
             No known link between <em>{chain[i]}</em> and <em>{chain[i + 1]}</em>.
           </span>

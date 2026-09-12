@@ -8,7 +8,7 @@
  * tokens and webfonts travel with this lazy chunk and never reach a player.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import './admin.css';
 import { fetchQueue, type QueueCounts } from './adminClient';
 import { PoolPage } from './PoolPage';
@@ -16,6 +16,7 @@ import { ReviewPage } from './ReviewPage';
 import { UpcomingPage } from './UpcomingPage';
 
 type View = 'review' | 'schedule' | 'upcoming';
+type Theme = 'dark' | 'light';
 
 const TABS: readonly { id: View; label: string }[] = [
   { id: 'review', label: 'Review' },
@@ -23,9 +24,37 @@ const TABS: readonly { id: View; label: string }[] = [
   { id: 'upcoming', label: 'Upcoming' },
 ];
 
+/**
+ * The admin's own key, separate from the game's `linkage:v1:theme`.
+ *
+ * They are genuinely different preferences: the game is read for two minutes
+ * in whatever light the player is in, the admin for an hour at a desk. Sharing
+ * one key would mean changing one to change the other.
+ */
+const THEME_KEY = 'linkage:v1:admin-theme';
+
+/** Dark unless told otherwise, and never the OS — see admin.css. */
+function storedTheme(): Theme {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
 export function AdminApp() {
   const [view, setView] = useState<View>('review');
   const [counts, setCounts] = useState<QueueCounts | null>(null);
+  const [theme, setTheme] = useState<Theme>(storedTheme);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // A tool that refuses to change theme because storage is full would be
+      // a worse failure than simply not remembering.
+    }
+  }, [theme]);
 
   // Scheduling and sending back both change the header, from screens that do
   // not own it. Cheaper than lifting the whole queue into this component.
@@ -36,17 +65,28 @@ export function AdminApp() {
   }, []);
 
   return (
-    <div className="adm">
+    <div className="adm" data-adm-theme={theme}>
       <div className="adm-page">
-        <header>
-          <h1 className="adm-title">Linkage review</h1>
-          {/* One line, three numbers. The rest was noise. */}
-          {counts !== null && (
-            <p className="adm-meta" style={{ marginTop: '0.375rem' }}>
-              {counts.approved} approved &nbsp;·&nbsp; {counts.scheduled} dated &nbsp;·&nbsp;{' '}
-              {counts.rejected} rejected
-            </p>
-          )}
+        <header className="adm-head">
+          <div>
+            <h1 className="adm-title">Linkage review</h1>
+            {/* One line, three numbers. The rest was noise. */}
+            {counts !== null && (
+              <p className="adm-subhead">
+                {counts.approved} approved &nbsp;·&nbsp; {counts.scheduled} dated &nbsp;·&nbsp;{' '}
+                {counts.rejected} rejected
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            className="adm-btn adm-btn--theme"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
         </header>
 
         <nav className="adm-tabs">

@@ -23,6 +23,15 @@ export interface LadderProps {
   badLink?: number | null;
   onMarkLink?: ((index: number) => void) | undefined;
   edits?: WordEdit[];
+  /**
+   * Softens the interior words.
+   *
+   * On the review screen every word is under judgement and they all read at
+   * full strength. In a *list* you are identifying a puzzle to act on, and
+   * what identifies it is its endpoints — so the four in between step back.
+   * Six words at identical weight is what made the schedule screen tiring.
+   */
+  tone?: 'judge' | 'list';
 }
 
 export function Ladder({
@@ -33,11 +42,12 @@ export function Ladder({
   badLink = null,
   onMarkLink,
   edits = [],
+  tone = 'judge',
 }: LadderProps) {
   const changed = new Set(edits.map((e) => e.added));
 
   return (
-    <ol className="adm-chain">
+    <ol className={`adm-chain${tone === 'list' ? ' adm-chain--list' : ''}`}>
       {chain.map((word, i) => {
         const endpoint = i === 0 || i === chain.length - 1;
         return (

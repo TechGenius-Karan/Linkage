@@ -80,7 +80,7 @@ export function PoolPage({ onChanged }: PoolPageProps) {
 
       {warnings !== null && (
         <div className="adm-panel">
-          <div className="adm-section" style={{ margin: 0 }}>
+          <div className="adm-section adm-section--tight">
             <h2 className="adm-h2">Scheduled for {format(warnings.date)}</h2>
             <button
               type="button"
@@ -134,8 +134,9 @@ export function PoolPage({ onChanged }: PoolPageProps) {
                 weights={puzzle.linkWeights}
                 relations={puzzle.relations}
                 edits={puzzle.bankEdits}
+                tone="list"
               />
-              <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+              <div className="adm-cluster">
                 {puzzle.manualEdges.length > 0 && (
                   <span className="adm-meta" title="Ships a link you asserted">
                     {puzzle.manualEdges.length} asserted
@@ -163,7 +164,7 @@ export function PoolPage({ onChanged }: PoolPageProps) {
               </div>
 
               {picking === puzzle.hash && (
-                <div className="adm-days" style={{ flexBasis: '100%' }}>
+                <div className="adm-days adm-cluster--wide">
                   {offered.map((day) => (
                     <button
                       key={day}

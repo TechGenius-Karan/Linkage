@@ -74,10 +74,10 @@ export function UpcomingPage({ onChanged }: UpcomingPageProps) {
           Nothing dated. Export will propose days for whatever is in the pool.
         </p>
       ) : (
-        <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        <ol className="adm-list">
           {scheduled.map((puzzle) => (
             <li key={puzzle.hash} className="adm-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+              <div className="adm-dated">
                 <time dateTime={puzzle.date ?? undefined} className="adm-meta">
                   {puzzle.date === null ? '' : format(puzzle.date)}
                 </time>
@@ -86,9 +86,10 @@ export function UpcomingPage({ onChanged }: UpcomingPageProps) {
                   weights={puzzle.linkWeights}
                   relations={puzzle.relations}
                   edits={puzzle.bankEdits}
+                  tone="list"
                 />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+              <div className="adm-cluster">
                 {puzzle.manualEdges.length > 0 && (
                   <span className="adm-meta" title="Ships a link you asserted">
                     {puzzle.manualEdges.length} asserted
