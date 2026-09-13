@@ -1,0 +1,41 @@
+name: test
+on: pull_request
+
+# Gates every PR. Deploy is not this workflow's job — Netlify's own git
+# integration (web/netlify.toml) builds and publishes web/ on push to main.
+# This still runs independently because it covers the half of the repo
+# Netlify's build never touches: engine/'s pytest suite.
+#
+# Both jobs run against committed fixtures only — no ConceptNet dump, no
+# network. Never add a build-graph/generate/export/admin step here; those
+# are local-only by design (CLAUDE.md, docs/admin.md §1).
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e .
+        working-directory: engine
+      - run: pytest
+        working-directory: engine
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+        working-directory: web
+      - run: npm run typecheck
+        working-directory: web
+      - run: npm run lint
+        working-directory: web
+      - run: npm run test
+        working-directory: web
+      - run: npm run build
+        working-directory: web

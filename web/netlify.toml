@@ -1,0 +1,32 @@
+# Netlify build + deploy config for the static client (planning.md §12,
+# docs/deployment.md). This file is the whole "deploy.yml" this project
+# needs — Netlify's own git integration reads it and builds + publishes on
+# every push to main, with a deploy preview on every PR for free.
+#
+# `base = "web"` scopes the build to this directory, so Netlify never sees
+# `engine/` or `engine/fixtures/` (the plaintext answer key) at all — that
+# exclusion is structural, not something to remember.
+
+[build]
+  base = "web"
+  publish = "dist"
+  # `npm run build` already chains tsc -> vite build -> assert-no-admin
+  # (package.json); running the test suite first is one line of cheap
+  # insurance in case a change ever reaches main without going through a
+  # PR that test.yml would have gated.
+  command = "npm run test && npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# manifest.json is the one file in the archive that's both long-lived and
+# mutable (its `count` grows with every export batch) — see
+# docs/deployment.md §5.3. A short cache keeps a client from under-counting
+# the archive for long after a fresh batch ships. Dated puzzle files
+# (2026-10-01.json etc.) need no special rule: each date is a distinct URL,
+# so a stale cached copy of a past day is simply irrelevant once local
+# midnight moves the client on to requesting a new filename.
+[[headers]]
+  for = "/puzzles/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=300, must-revalidate"

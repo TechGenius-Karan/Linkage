@@ -2,12 +2,16 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwind from '@tailwindcss/vite';
 
-// `base` must match the GitHub Pages project subpath or every asset 404s in
-// production while working perfectly on localhost (planning.md Risk #7).
-// HttpPuzzleRepository reads the same value via import.meta.env.BASE_URL, so
-// this constant is the single place the deploy path is written down.
+// Netlify serves the site at its domain root (both the *.netlify.app
+// subdomain and a bought custom domain later), not a project subpath, so
+// `base` is just Vite's default. Left explicit rather than omitted because
+// this is the one place the deploy path is written down —
+// HttpPuzzleRepository reads the same value via import.meta.env.BASE_URL
+// rather than a hardcoded path, so a future subpath (or another host)
+// would only ever mean changing this one line (planning.md Risk #7,
+// docs/deployment.md).
 export default defineConfig({
-  base: '/Linkage/',
+  base: '/',
   plugins: [react(), tailwind()],
   server: {
     // The admin's Python server (`linkage admin`) lives on another port.

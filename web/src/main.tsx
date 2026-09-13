@@ -16,8 +16,8 @@ import './index.css';
 const root = document.getElementById('root');
 if (root === null) throw new Error('#root is missing from index.html');
 
-// BASE_URL is '/Linkage/' in production and '/' in dev — the GitHub Pages
-// subpath lives in vite.config.ts and nowhere else (Risk #7).
+// BASE_URL is '/' in both dev and production now that Netlify roots the
+// site — vite.config.ts is still the one place this is written down.
 const repo = new HttpPuzzleRepository(import.meta.env.BASE_URL);
 const store = new LocalStorageProgressStore();
 
@@ -26,7 +26,7 @@ const store = new LocalStorageProgressStore();
  *
  * `import.meta.env.DEV` is replaced with the literal `false` at build time, so
  * the branch below is dead code in production and Rollup drops the dynamic
- * import with it — the admin never reaches `dist/`, let alone GitHub Pages.
+ * import with it — the admin never reaches `dist/`, let alone the live site.
  *
  * There is no server-side gate on the admin, so a deployed one would be an open
  * door onto the answer key. `scripts/assert-no-admin.mjs` runs on every build

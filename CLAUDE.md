@@ -12,7 +12,7 @@ format as their only interface:
 - **`engine/`** — Python. Offline puzzle generation from a ConceptNet graph.
   Run locally, roughly monthly. Never runs in CI (needs a 1.2 GB dataset).
 - **`web/`** — TypeScript/React/Vite. The static client that plays the
-  puzzles. Deployed to GitHub Pages.
+  puzzles. Deployed to Netlify.
 
 They meet only at `web/public/puzzles/*.json`. Neither half imports the
 other. `planning.md` is the full design doc (~1500 lines); `docs/engine.md`
