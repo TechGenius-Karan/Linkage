@@ -15,10 +15,25 @@ function formatTime(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+export interface ShareParts {
+  headline: string;
+  /** null when no hint was used, so a layout can drop the line entirely. */
+  hintNote: string | null;
+}
+
 /** Meant for a won game — `state.finishedAt` is what freezes the time reported. */
-export function buildShareText(state: GameState): string {
+export function buildShareParts(state: GameState): ShareParts {
   const time = formatTime(elapsedMs(state, state.finishedAt ?? 0));
   const hints = state.hintsUsed.length;
-  const hintNote = hints > 0 ? ` (${hints} hint${hints === 1 ? '' : 's'} used)` : '';
-  return `Linkage #${state.puzzleId} — solved in ${time}${hintNote}`;
+  return {
+    headline: `Linkage #${state.puzzleId} — solved in ${time}`,
+    hintNote: hints > 0 ? `(${hints} hint${hints === 1 ? '' : 's'} used)` : null,
+  };
+}
+
+/** The single pasteable line — what a clipboard paste must look like, unlike
+ * the on-screen card, which breaks the hint note onto its own row. */
+export function buildShareText(state: GameState): string {
+  const { headline, hintNote } = buildShareParts(state);
+  return hintNote === null ? headline : `${headline} ${hintNote}`;
 }

@@ -16,13 +16,16 @@ import {
   makeGameReducer,
 } from './engine/gameReducer';
 import type { ProgressStore, PuzzleRepository } from './engine/ports';
-import { buildShareText } from './engine/shareText';
+import { buildShareParts, buildShareText } from './engine/shareText';
 import { recordResult } from './engine/stats';
 import { PuzzleNotFound, type GameState, type Puzzle } from './engine/types';
-import { AttemptHistory } from './ui/AttemptHistory';
 import { Board } from './ui/Board';
 import { Header } from './ui/Header';
+import { HowToPlayModal } from './ui/HowToPlayModal';
+import { SettingsModal } from './ui/SettingsModal';
+import { StatsModal } from './ui/StatsModal';
 import { SubmitBar } from './ui/SubmitBar';
+import { Timer } from './ui/Timer';
 import { WordBank } from './ui/WordBank';
 
 type Screen =
@@ -94,8 +97,14 @@ export function App({ repo, store }: AppProps) {
   }, [id]);
 
   return (
-    <div className="flex min-h-screen justify-center px-4 pb-11 pt-7">
-      <div className="flex w-full max-w-[360px] flex-col gap-6">
+    <div className="flex min-h-screen justify-center px-4 pb-11 pt-7 md:items-center md:py-10">
+      {/* Bare on a phone, where the viewport already is the frame. From
+          tablet width up, a bordered card with a soft shadow reads as "this
+          is the play area" against an otherwise-empty desktop background.
+          390px is a common phone logical width (iPhone 12-15); `md:items-center`
+          stops the card stretching to fill the browser window's full height,
+          so it sizes to its content like an actual phone screen would. */}
+      <div className="flex w-full max-w-[390px] flex-col gap-6 md:rounded-[32px] md:border md:border-rule md:bg-surface md:p-6 md:shadow-[0_8px_30px_rgba(31,29,26,0.08)]">
         {screen.kind === 'ready' ? (
           <Game
             key={screen.puzzle.id}
@@ -208,6 +217,8 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
     setTimeout(() => setHintFlash(false), 1_500);
   }, []);
 
+  const [panel, setPanel] = useState<'stats' | 'howto' | 'settings' | null>(null);
+
   const elapsed = elapsedMs(state, now);
   const lastAttempt = state.attempts.at(-1);
   const over = state.status !== 'playing';
@@ -217,7 +228,16 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
       <Header
         puzzleNumber={puzzle.id}
         onHint={over || hintsRemaining(state, puzzle) === 0 ? undefined : takeHint}
+        onStats={() => setPanel('stats')}
+        onHowToPlay={() => setPanel('howto')}
+        onSettings={() => setPanel('settings')}
       />
+
+      {/* The capsule's own padding adds ~12px of height; pull it back out of
+          the surrounding gap-6 so the pill outline doesn't grow the page. */}
+      <div className="-my-1.5 flex justify-end pr-0.5">
+        <Timer elapsedMs={elapsed} hintFlash={hintFlash} />
+      </div>
 
       {newDayAvailable && (
         <button
@@ -248,14 +268,13 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
       />
 
       <SubmitBar
-        elapsedMs={elapsed}
-        hintFlash={hintFlash}
         lastCorrect={lastAttempt?.correctCount ?? null}
         status={state.status}
         attemptsTaken={state.attempts.length}
         canSubmit={isBoardFull(state)}
         onSubmit={() => dispatch({ type: 'SUBMIT', now: Date.now() })}
         shareText={state.status === 'won' ? buildShareText(state) : undefined}
+        shareParts={state.status === 'won' ? buildShareParts(state) : undefined}
       />
 
       <WordBank
@@ -266,7 +285,9 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
         onTileClick={over ? undefined : (tileId) => dispatch({ type: 'SELECT_TILE', tileId })}
       />
 
-      <AttemptHistory attempts={state.attempts} />
+      <StatsModal open={panel === 'stats'} onClose={() => setPanel(null)} stats={store.readStats()} />
+      <HowToPlayModal open={panel === 'howto'} onClose={() => setPanel(null)} />
+      <SettingsModal open={panel === 'settings'} onClose={() => setPanel(null)} />
     </>
   );
 }
