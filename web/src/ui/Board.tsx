@@ -16,10 +16,30 @@
  * The reducer never learns dragging exists. This dispatches `MOVE_TILE`.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { Fragment, useCallback, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { AnchorWord } from './AnchorWord';
 import { Slot, type SlotState } from './Slot';
+
+/** Connects one rung to the next. The only ornament in the game (docs/design.md 5). */
+function Connector() {
+  return (
+    <svg
+      width="14"
+      height="9"
+      viewBox="0 0 12 8"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-ink-muted"
+      aria-hidden="true"
+    >
+      <path d="M1 1l5 5 5-5" />
+    </svg>
+  );
+}
 
 export interface BoardProps {
   start: string;
@@ -107,12 +127,8 @@ export function Board({
       // the row rather than leave it floating.
       onPointerCancel={endDrag}
     >
-      <div
-        className="pointer-events-none absolute left-1/2 top-9 bottom-9 z-0 -ml-px w-0.5 bg-rule"
-        aria-hidden="true"
-      />
-
       <AnchorWord word={start} position="start" />
+      <Connector />
 
       {slots.map((word, i) => {
         // On a loss the chain replaces whatever the player had, rather than
@@ -123,26 +139,28 @@ export function Board({
         const state: SlotState =
           reveal !== undefined ? 'reveal' : word !== null ? 'filled' : 'empty';
         return (
-          <Slot
-            key={i}
-            index={i}
-            word={reveal ?? word}
-            state={state}
-            dragOffset={drag?.from === i ? drag.offset : undefined}
-            isDropTarget={dropTarget === i && drag?.from !== i}
-            onClick={onSlotClick}
-            onRemove={onSlotRemove}
-            onNudge={
-              onMove === undefined
-                ? undefined
-                : (index, direction) => {
-                    const to = index + direction;
-                    if (to >= 0 && to < slots.length) onMove(index, to);
-                  }
-            }
-            onDragStart={handleDragStart}
-            onEscape={onEscape}
-          />
+          <Fragment key={i}>
+            <Slot
+              index={i}
+              word={reveal ?? word}
+              state={state}
+              dragOffset={drag?.from === i ? drag.offset : undefined}
+              isDropTarget={dropTarget === i && drag?.from !== i}
+              onClick={onSlotClick}
+              onRemove={onSlotRemove}
+              onNudge={
+                onMove === undefined
+                  ? undefined
+                  : (index, direction) => {
+                      const to = index + direction;
+                      if (to >= 0 && to < slots.length) onMove(index, to);
+                    }
+              }
+              onDragStart={handleDragStart}
+              onEscape={onEscape}
+            />
+            <Connector />
+          </Fragment>
         );
       })}
 

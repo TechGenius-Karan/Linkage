@@ -67,6 +67,19 @@
   --font-data: var(--type-data);
 }
 
+/* Switching light/dark (the settings toggle, or the OS) changes every token
+   in one frame; without this every themed surface snaps instead of settles.
+   Scoped broadly, but a class's own `transition` (e.g. `.slot`, `.icon-btn`)
+   always wins over this for elements that have one -- see docs/design.md 6. */
+*,
+*::before,
+*::after {
+  transition:
+    background-color 200ms ease-out,
+    border-color 200ms ease-out,
+    color 200ms ease-out;
+}
+
 body {
   margin: 0;
   background: var(--ground);
@@ -206,12 +219,38 @@ a:hover {
     height: 40px;
     margin: -2px;
     border-radius: 8px;
-    color: var(--ink-muted);
+    color: var(--ink);
     touch-action: manipulation;
     transition: color 0.12s ease-out;
   }
   .icon-btn:hover {
-    color: var(--ink);
+    color: var(--accent);
+  }
+
+  /* Native <dialog> ships browser-default border/padding/background; Modal.tsx
+     supplies its own via Tailwind classes on the element itself. `::backdrop`
+     can't be reached by a utility class, so it gets one plain rule here. */
+  dialog {
+    margin: auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+  dialog::backdrop {
+    background: rgb(31 29 26 / 0.4);
+  }
+
+  /* Retriggers on every check (SubmitBar remounts the element via `key`), so
+     each result reads as landing rather than sitting there unchanged. */
+  .animate-feedback-in {
+    animation: feedback-in 180ms ease-out;
+  }
+}
+
+@keyframes feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
   }
 }
 

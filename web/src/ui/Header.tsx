@@ -27,7 +27,7 @@ function Action({ label, onClick, children }: ActionProps) {
   return (
     <button
       type="button"
-      className="icon-btn ring-focus disabled:opacity-40"
+      className="icon-btn ring-focus"
       aria-label={label}
       title={label}
       onClick={onClick}
@@ -49,7 +49,7 @@ export function Header({
     <header className="flex items-center justify-between gap-3">
       <div className="flex items-baseline gap-2">
         <span className="font-word text-[19px] font-semibold tracking-[0.01em]">Linkage</span>
-        <span className="text-[13px] font-medium text-ink-muted">#{puzzleNumber}</span>
+        <span className="text-[17px] font-medium text-ink-muted">#{puzzleNumber}</span>
       </div>
 
       <div className="flex items-center gap-1">

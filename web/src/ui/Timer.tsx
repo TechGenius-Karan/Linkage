@@ -24,7 +24,7 @@ function formatTime(ms: number): string {
 export function Timer({ elapsedMs, hintFlash }: TimerProps) {
   return (
     <div
-      className="flex items-center gap-1.5 text-base font-medium tabular-nums"
+      className="flex items-center gap-1.5 rounded-full border border-rule bg-surface px-3.5 py-1.5 text-base font-medium tabular-nums"
       role="timer"
       aria-label={`Elapsed time ${formatTime(elapsedMs)}`}
     >
