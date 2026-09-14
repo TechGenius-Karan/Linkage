@@ -23,6 +23,7 @@ question:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Iterator
 
 import networkx as nx
 
@@ -73,6 +74,24 @@ class LinkFix:
 
     index: int  # which rung, 0..3, this replaces
     word: str
+    temptingness: float
+    source: str
+
+
+#: A joint replacement for a whole span of rungs. Unlike `LinkFix`, the words
+#: in `words` are not independent alternatives -- they are one combination
+#: that only works together, because holding one fixed while searching for
+#: the other would miss exactly the case this exists for: squirrel needs to
+#: change *and* the choice pulls the word after it along with it.
+RANGE_LIMIT = 3
+
+
+@dataclass(frozen=True, slots=True)
+class RangeFix:
+    """One joint replacement for rungs `start_index .. start_index + len(words) - 1`."""
+
+    start_index: int
+    words: tuple[str, ...]
     temptingness: float
     source: str
 
@@ -318,4 +337,96 @@ def safe_link_fixes(
         found.extend(scored)
 
     found.sort(key=lambda f: (-f.temptingness, f.index, f.word))
+    return found[:limit]
+
+
+def _middle_words(
+    graph: nx.Graph, left: str, right: str, count: int
+) -> Iterator[tuple[str, ...]]:
+    """Every sequence of `count` words bridging `left` to `right` by real edges.
+
+    `left -> words[0] -> words[1] -> ... -> right`, each consecutive pair an
+    actual edge in `graph`. `count == 1` is a plain common-neighbour search;
+    each extra word recurses one hop further from `left`, which is the same
+    "meet in the middle" idea `BidirectionalBFSFinder` uses for a whole
+    puzzle, just unrolled for a short, already-anchored span instead of two
+    sampled endpoints.
+    """
+    if count == 1:
+        for word in sorted_neighbours(graph, left):
+            if graph.has_edge(word, right):
+                yield (word,)
+        return
+    for w1 in sorted_neighbours(graph, left):
+        for rest in _middle_words(graph, w1, right, count - 1):
+            yield (w1, *rest)
+
+
+def safe_range_fixes(
+    cfg: Config,
+    graph: nx.Graph,
+    stemmer: Stemmer,
+    puzzle: Puzzle,
+    start_link: int,
+    end_link: int,
+    manual_edges: tuple[ManualEdge, ...] = (),
+    limit: int = 8,
+) -> list[RangeFix]:
+    """A joint replacement for every rung between two flagged links.
+
+    For when one bad link turns out to be two: softening `squirrel` might
+    make the rung after it (`park`) stop fitting, and there is no single-word
+    fix for that -- the two have to be chosen together. This holds the two
+    words *outside* the marked span fixed and searches for a whole
+    replacement run via `_middle_words`, checked against the same two
+    invariants as everything else here (chordless, uniquely solvable).
+
+    `start_link == end_link` also works and searches exactly the rungs that
+    one link touches jointly, which is a different question from
+    `safe_link_fixes`'s "try each side independently" -- callers with a
+    single flagged link should keep using that; this is for an actual span.
+    """
+    if not (0 <= start_link <= end_link < CHAIN_LINKS):
+        raise ValueError(
+            f"start_link/end_link must be 0..{CHAIN_LINKS - 1} with start <= end, "
+            f"got {start_link}, {end_link}"
+        )
+
+    last_rung = len(puzzle.solution) - 1
+    lo = max(0, start_link - 1)
+    hi = min(last_rung, end_link)
+    count = hi - lo + 1
+    if count > RANGE_LIMIT:
+        raise ValueError(f"pick a narrower span -- at most {RANGE_LIMIT} words at once")
+
+    g = augmented(graph, manual_edges)
+    nodes = puzzle.nodes
+    left, right = nodes[lo], nodes[hi + 2]
+    old_words = nodes[lo + 1 : hi + 2]
+    on_screen = frozenset({*nodes, *puzzle.bank})
+    rest = on_screen - set(old_words)
+
+    found: list[RangeFix] = []
+    for combo in _middle_words(g, left, right, count):
+        if len(set(combo)) != len(combo):
+            continue
+        if any(w in on_screen for w in combo):
+            continue
+        if any(shares_stem(stemmer, w, rest) or overlaps_substring(w, rest) for w in combo):
+            continue
+
+        trial_nodes = nodes[: lo + 1] + combo + nodes[hi + 2 :]
+        if cfg.enforce_chordless and has_chord(g, trial_nodes):
+            continue
+
+        replace_by = dict(zip(old_words, combo))
+        trial_bank = tuple(replace_by.get(w, w) for w in puzzle.bank)
+        if not is_uniquely_solvable(g, puzzle.start, puzzle.end, trial_bank, cfg.chain_length):
+            continue
+
+        span = (left, *combo, right)
+        weight = sum(g[a][b]["weight"] for a, b in zip(span, span[1:]))
+        found.append(RangeFix(start_index=lo, words=combo, temptingness=weight, source="link-fix"))
+
+    found.sort(key=lambda f: (-f.temptingness, f.words))
     return found[:limit]

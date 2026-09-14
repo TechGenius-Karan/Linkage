@@ -424,6 +424,47 @@ def link_fix_options(
     }
 
 
+def range_fix_options(
+    cfg: Config,
+    graph: nx.Graph,
+    hash_: str,
+    start_link: int,
+    end_link: int,
+    edits: tuple[dec.WordEdit, ...] = (),
+    manual_edges: tuple[dec.ManualEdge, ...] = (),
+    limit: int = 8,
+) -> dict:
+    """A joint replacement for every rung between two flagged links (5.3/5.4).
+
+    For when softening one word only moves the problem to its neighbour --
+    `link_fix_options` searches one slot; this searches a whole span at once
+    and only ever offers combinations that already passed both invariants.
+    """
+    rows, _ = _load_pair(cfg, hash_)
+    row = rows[hash_]
+    puzzle = _effective(row, edits)
+    try:
+        fixes = refine.safe_range_fixes(
+            cfg, graph, _STEMMER, puzzle, start_link, end_link, manual_edges, limit=limit
+        )
+    except ValueError as exc:
+        raise BadRequest(str(exc)) from exc
+    return {
+        "hash": hash_,
+        "startLink": start_link,
+        "endLink": end_link,
+        "options": [
+            {
+                "startIndex": f.start_index,
+                "words": list(f.words),
+                "temptingness": round(f.temptingness, 2),
+                "source": f.source,
+            }
+            for f in fixes
+        ],
+    }
+
+
 # --------------------------------------------------------------------------
 # 6c -- the approved pool, and choosing a date (planning.md 16.2, 16.6)
 # --------------------------------------------------------------------------

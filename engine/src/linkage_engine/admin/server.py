@@ -169,6 +169,19 @@ class AdminHandler(BaseHTTPRequestHandler):
                     self.cfg, self.graph(), need("hash"), raw_link, edits(), edges()
                 )
             )
+        elif path == "/api/admin/range-fixes":
+            # A joint version of /link-fixes, for a span the reviewer marked
+            # across more than one link.
+            raw_start = body.get("startLink")
+            raw_end = body.get("endLink")
+            if not isinstance(raw_start, int) or not isinstance(raw_end, int):
+                self._send(400, {"error": "startLink and endLink are required"})
+                return
+            self._run(
+                lambda: handlers.range_fix_options(
+                    self.cfg, self.graph(), need("hash"), raw_start, raw_end, edits(), edges()
+                )
+            )
         elif path == "/api/admin/schedule":
             self._run(lambda: handlers.schedule(self.cfg, need("hash"), need("date")))
         elif path == "/api/admin/unschedule":

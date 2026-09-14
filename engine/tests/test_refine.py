@@ -291,3 +291,92 @@ class TestSafeLinkFixes:
     def test_rejects_an_out_of_range_link(self, graph, puzzle):
         with pytest.raises(ValueError, match="0..4"):
             refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=5)
+
+
+# --------------------------------------------------------------------------
+# A joint fix for a whole span, not one word at a time
+# --------------------------------------------------------------------------
+
+
+class TestSafeRangeFixes:
+    def test_offers_a_joint_two_word_replacement(self, graph, puzzle):
+        # w1 -> a1 -> a2 -> w4 bridges the same two anchors a single-slot
+        # search would use for w2 or w3 alone, but only as a pair.
+        graph.add_edge("w1", "a1", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a1", "a2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a2", "w4", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_range_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, start_link=2, end_link=2
+        )
+        assert any(o.start_index == 1 and o.words == ("a1", "a2") for o in options)
+
+    def test_offers_a_joint_three_word_replacement(self, graph, puzzle):
+        graph.add_edge("s", "b1", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("b1", "b2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("b2", "b3", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("b3", "w4", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_range_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, start_link=1, end_link=2
+        )
+        assert any(o.start_index == 0 and o.words == ("b1", "b2", "b3") for o in options)
+
+    def test_never_offers_a_combination_that_creates_a_chord(self, graph, puzzle):
+        graph.add_edge("w1", "a1", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a1", "a2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a2", "w4", weight=2.5, relations=("RelatedTo",))
+        # A second bridging pair, but the far word also touches `e` directly
+        # -- a shortcut the moment it takes over w3's slot.
+        graph.add_edge("w1", "c1", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("c1", "c2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("c2", "w4", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("c2", "e", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_range_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, start_link=2, end_link=2
+        )
+        assert not any("c2" in o.words for o in options)
+        assert any(o.words == ("a1", "a2") for o in options)
+
+    def test_never_offers_a_word_already_on_screen(self, graph, puzzle):
+        graph.add_edge("w1", "dead2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("dead2", "a2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a2", "w4", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_range_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, start_link=2, end_link=2
+        )
+        assert not any("dead2" in o.words for o in options)
+
+    def test_rejects_a_span_wider_than_the_limit(self, graph, puzzle):
+        with pytest.raises(ValueError, match="narrower span"):
+            refine.safe_range_fixes(
+                CFG, graph, IdentityStemmer(), puzzle, start_link=0, end_link=4
+            )
+
+    def test_rejects_start_after_end(self, graph, puzzle):
+        with pytest.raises(ValueError, match="0..4"):
+            refine.safe_range_fixes(
+                CFG, graph, IdentityStemmer(), puzzle, start_link=3, end_link=1
+            )
+
+    def test_honours_the_limit(self, graph, puzzle):
+        graph.add_edge("w1", "a1", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a1", "a2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a2", "w4", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("w1", "d1", weight=2.4, relations=("RelatedTo",))
+        graph.add_edge("d1", "d2", weight=2.4, relations=("RelatedTo",))
+        graph.add_edge("d2", "w4", weight=2.4, relations=("RelatedTo",))
+        options = refine.safe_range_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, start_link=2, end_link=2, limit=1
+        )
+        assert len(options) <= 1
+
+    def test_is_deterministic(self, graph, puzzle):
+        graph.add_edge("w1", "a1", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a1", "a2", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("a2", "w4", weight=2.5, relations=("RelatedTo",))
+        first = refine.safe_range_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, start_link=2, end_link=2
+        )
+        second = refine.safe_range_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, start_link=2, end_link=2
+        )
+        assert first == second

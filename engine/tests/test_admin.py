@@ -325,6 +325,51 @@ class TestLinkFixOptions:
             handlers.link_fix_options(cfg, graph, "aaa", 7)
 
 
+class TestRangeFixOptions:
+    def test_offers_a_joint_replacement(self, cfg, graph):
+        # ocean -> x1 -> x2 -> sky bridges the same anchors a size-2 span
+        # over link 2 ("blue -> sky") needs -- blue and sky replaced together.
+        graph.add_edge("ocean", "reef", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("reef", "cove", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("cove", "birds", weight=2.5, relations=("RelatedTo",))
+        options = handlers.range_fix_options(cfg, graph, "aaa", 2, 2)["options"]
+        assert any(o["words"] == ["reef", "cove"] for o in options)
+
+    def test_offers_only_combinations_the_engine_would_accept(self, cfg, graph):
+        graph.add_edge("ocean", "reef", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("reef", "cove", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("cove", "birds", weight=2.5, relations=("RelatedTo",))
+        options = handlers.range_fix_options(cfg, graph, "aaa", 2, 2)["options"]
+        assert options
+        solution = ["ocean", "blue", "sky", "birds"]
+        for option in options:
+            replay = tuple(
+                dec.WordEdit(
+                    field="solution",
+                    removed=solution[option["startIndex"] + i],
+                    added=word,
+                    index=option["startIndex"] + i,
+                )
+                for i, word in enumerate(option["words"])
+            )
+            result = handlers.edit(cfg, graph, "aaa", replay)
+            assert result["ok"], result["refusals"]
+
+    def test_shows_start_index_words_temptingness_and_source(self, cfg, graph):
+        graph.add_edge("ocean", "reef", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("reef", "cove", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("cove", "birds", weight=2.5, relations=("RelatedTo",))
+        options = handlers.range_fix_options(cfg, graph, "aaa", 2, 2)["options"]
+        assert all(
+            "startIndex" in o and "words" in o and "temptingness" in o and "source" in o
+            for o in options
+        )
+
+    def test_rejects_a_span_wider_than_the_limit(self, cfg, graph):
+        with pytest.raises(handlers.BadRequest, match="narrower span"):
+            handlers.range_fix_options(cfg, graph, "aaa", 0, 4)
+
+
 class TestApproveWithEdits:
     def test_stores_the_edits_on_the_decision(self, cfg, graph):
         handlers.approve(cfg, "aaa", edits=(edit("cloud", "storm"),), graph=graph)

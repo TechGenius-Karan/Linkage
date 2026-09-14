@@ -193,6 +193,30 @@ export const fetchLinkFixes = (
 ): Promise<{ options: LinkFixOption[] }> =>
   post('/api/admin/link-fixes', { hash, badLink, edits, manualEdges });
 
+export interface RangeFixOption {
+  /** Which rung (0-3) `words[0]` replaces; the rest follow it in order. */
+  startIndex: number;
+  words: string[];
+  temptingness: number;
+  source: string;
+}
+
+/**
+ * A joint replacement for every rung between two flagged links.
+ *
+ * For when one bad link turns out to be two: softening one word can make its
+ * neighbour stop fitting, and there is no single-word fix for that — the
+ * words have to be chosen together.
+ */
+export const fetchRangeFixes = (
+  hash: string,
+  startLink: number,
+  endLink: number,
+  edits: WordEdit[],
+  manualEdges: ManualEdge[] = [],
+): Promise<{ options: RangeFixOption[] }> =>
+  post('/api/admin/range-fixes', { hash, startLink, endLink, edits, manualEdges });
+
 // --------------------------------------------------------------------------
 // The pool, and choosing a date (docs/admin.md 7, 8, 12.2)
 // --------------------------------------------------------------------------

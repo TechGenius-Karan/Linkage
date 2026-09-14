@@ -20,8 +20,14 @@ export interface LadderProps {
   relations: string[][];
   /** Rungs resting on the reviewer's word rather than ConceptNet's. */
   asserted?: number[];
+  /**
+   * The marked link, or a marked span (docs/admin.md 5.4) — shift-clicking a
+   * second link extends `badLink` into `[lo, hi]` rather than replacing it.
+   */
   badLink?: number | null;
-  onMarkLink?: ((index: number) => void) | undefined;
+  range?: [number, number] | null;
+  /** `extend` is true on a shift-click — grow the span instead of replacing it. */
+  onMarkLink?: ((index: number, extend: boolean) => void) | undefined;
   edits?: WordEdit[];
   /**
    * Softens the interior words.
@@ -40,6 +46,7 @@ export function Ladder({
   relations,
   asserted = [],
   badLink = null,
+  range = null,
   onMarkLink,
   edits = [],
   tone = 'judge',
@@ -71,7 +78,7 @@ export function Ladder({
                 weight={weights[i]}
                 relations={relations[i] ?? []}
                 isAsserted={asserted.includes(i)}
-                selected={badLink === i}
+                selected={range !== null ? i >= range[0] && i <= range[1] : badLink === i}
                 onMark={onMarkLink}
               />
             )}
@@ -90,7 +97,7 @@ interface RungProps {
   relations: string[];
   isAsserted: boolean;
   selected: boolean;
-  onMark: ((index: number) => void) | undefined;
+  onMark: ((index: number, extend: boolean) => void) | undefined;
 }
 
 function Rung({ index, from, to, weight, relations, isAsserted, selected, onMark }: RungProps) {
@@ -108,10 +115,10 @@ function Rung({ index, from, to, weight, relations, isAsserted, selected, onMark
     <button
       type="button"
       className={className}
-      onClick={() => onMark(index)}
+      onClick={(e) => onMark(index, e.shiftKey)}
       aria-pressed={selected}
       aria-label={`Mark the link from ${from} to ${to} as the one that fails`}
-      title={`${detail} — click to blame this link`}
+      title={`${detail} — click to blame this link, shift-click a second one to span both`}
     />
   );
 }

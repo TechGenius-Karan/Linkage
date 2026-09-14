@@ -238,6 +238,28 @@ verify them. A model guessing plausible words and handing them to the same
 validator would just be generate-then-filter with extra latency, which is the
 one pattern this project's distractor logic was built to avoid.
 
+#### 5.4 When one bad link turns out to be two
+
+§5.3 fixes one word at a time. Sometimes that isn't enough: softening
+`squirrel` can leave the rung after it (`park`) no longer fitting, and there
+is no single-word fix for that — the two have to be chosen together, or the
+reviewer is just moving the same problem one slot to the right.
+
+So a second click on another link — shift-click, holding the first link
+selected — extends the mark into a **span** instead of replacing it. The
+ladder highlights every rung in between, and "Suggest a fix" becomes "Suggest
+fixes for the stretch," backed by a joint search: hold the two words
+*outside* the span fixed, and look for a whole replacement run that bridges
+them by real edges, one hop at a time. Same two invariants as everywhere else
+here (chordless, uniquely solvable) — a suggestion that reaches the reviewer
+has already passed both, same as `swap_decoy` and `safe_link_fixes` before it.
+
+Capped at three words at once. A span that wide is close to regenerating the
+whole puzzle, which is a different question (a fresh `generate` run between
+the same two real endpoints) from "this stretch is weak" — the cap keeps the
+feature honest about what it's actually for, and keeps the search itself
+cheap enough to run inline.
+
 ### 6. The admin must never ship
 
 There is no server-side gate, so a deployed admin is an open door onto the

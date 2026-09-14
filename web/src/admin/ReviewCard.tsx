@@ -35,6 +35,9 @@ export function ReviewCard({
 }: ReviewCardProps) {
   const [reason, setReason] = useState('');
   const [badLink, setBadLink] = useState<number | null>(null);
+  // Only meaningful once `badLink` is set -- a shift-click on a second link
+  // extends the marked span instead of replacing it (docs/admin.md 5.4).
+  const [rangeEnd, setRangeEnd] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<WordEdit[]>(puzzle.bankEdits);
   const [edges, setEdges] = useState<ManualEdge[]>(puzzle.manualEdges);
@@ -43,6 +46,21 @@ export function ReviewCard({
   const canReject = reason.trim().length > 0;
   const blocked = (state?.refusals.length ?? 0) > 0;
   const chain = state?.chain ?? puzzle.chain;
+  const range: [number, number] | null =
+    badLink === null
+      ? null
+      : rangeEnd === null
+        ? [badLink, badLink]
+        : [Math.min(badLink, rangeEnd), Math.max(badLink, rangeEnd)];
+
+  const markLink = (i: number, extend: boolean) => {
+    if (extend && badLink !== null && i !== badLink) {
+      setRangeEnd(rangeEnd === i ? null : i);
+      return;
+    }
+    setBadLink(badLink === i ? null : i);
+    setRangeEnd(null);
+  };
 
   return (
     <article className={`adm-card${returned ? ' adm-card--returned' : ''}`}>
@@ -51,8 +69,8 @@ export function ReviewCard({
         weights={puzzle.linkWeights}
         relations={puzzle.relations}
         asserted={state?.assertedLinks ?? []}
-        badLink={badLink}
-        onMarkLink={(i) => setBadLink(badLink === i ? null : i)}
+        range={range}
+        onMarkLink={markLink}
         edits={edits}
       />
 
@@ -73,7 +91,7 @@ export function ReviewCard({
           edges={edges}
           state={state}
           disabled={busy}
-          badLink={badLink}
+          range={range}
           onChange={(nextEdits, nextEdges, nextState) => {
             setEdits(nextEdits);
             setEdges(nextEdges);

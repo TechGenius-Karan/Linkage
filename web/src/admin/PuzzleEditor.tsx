@@ -17,12 +17,14 @@
 import { useState } from 'react';
 import {
   fetchLinkFixes,
+  fetchRangeFixes,
   fetchSwapOptions,
   previewEdit,
   type EditResponse,
   type LinkFixOption,
   type ManualEdge,
   type QueuePuzzle,
+  type RangeFixOption,
   type SwapOption,
   type WordEdit,
 } from './adminClient';
@@ -35,8 +37,8 @@ export interface PuzzleEditorProps {
   state: EditResponse | null;
   onChange: (edits: WordEdit[], edges: ManualEdge[], state: EditResponse | null) => void;
   disabled: boolean;
-  /** The link the reviewer marked above, if any (docs/admin.md 5.3). */
-  badLink: number | null;
+  /** The link(s) the reviewer marked above, if any (docs/admin.md 5.3/5.4). */
+  range: [number, number] | null;
 }
 
 export function PuzzleEditor({
@@ -46,13 +48,15 @@ export function PuzzleEditor({
   state,
   onChange,
   disabled,
-  badLink,
+  range,
 }: PuzzleEditorProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openDecoy, setOpenDecoy] = useState<string | null>(null);
   const [options, setOptions] = useState<SwapOption[] | null>(null);
   const [linkFixes, setLinkFixes] = useState<LinkFixOption[] | null>(null);
+  const [rangeFixes, setRangeFixes] = useState<RangeFixOption[] | null>(null);
+  const isSpan = range !== null && range[0] !== range[1];
 
   const chain = state?.chain ?? puzzle.chain;
   const bank = state?.bank ?? puzzle.bank;
@@ -69,6 +73,7 @@ export function PuzzleEditor({
       setOpenDecoy(null);
       setOptions(null);
       setLinkFixes(null);
+      setRangeFixes(null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -107,11 +112,26 @@ export function PuzzleEditor({
   };
 
   const suggestLinkFixes = async () => {
-    if (badLink === null) return;
+    if (range === null) return;
     setLinkFixes(null);
     setBusy(true);
     try {
-      setLinkFixes((await fetchLinkFixes(puzzle.hash, badLink, edits, edges)).options);
+      setLinkFixes((await fetchLinkFixes(puzzle.hash, range[0], edits, edges)).options);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const suggestRangeFixes = async () => {
+    if (range === null) return;
+    setRangeFixes(null);
+    setBusy(true);
+    try {
+      setRangeFixes(
+        (await fetchRangeFixes(puzzle.hash, range[0], range[1], edits, edges)).options,
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -142,23 +162,30 @@ export function PuzzleEditor({
         )}
       </div>
 
-      {badLink !== null && (
+      {range !== null && (
         <div className="adm-section adm-section--tight">
           <button
             type="button"
             className="adm-btn adm-btn--quiet"
             disabled={disabled || busy}
-            onClick={() => void suggestLinkFixes()}
+            onClick={() => void (isSpan ? suggestRangeFixes() : suggestLinkFixes())}
           >
-            Suggest a fix for {chain[badLink]} → {chain[badLink + 1]}
+            {isSpan
+              ? `Suggest fixes for ${chain[range[0]]} … ${chain[range[1] + 1]}`
+              : `Suggest a fix for ${chain[range[0]]} → ${chain[range[0] + 1]}`}
           </button>
-          {linkFixes !== null && linkFixes.length === 0 && (
+          {!isSpan && linkFixes !== null && linkFixes.length === 0 && (
             <p className="adm-note">Nothing survives the uniqueness check.</p>
+          )}
+          {isSpan && rangeFixes !== null && rangeFixes.length === 0 && (
+            <p className="adm-note">
+              Nothing survives the uniqueness check for this span — try a narrower one.
+            </p>
           )}
         </div>
       )}
 
-      {badLink !== null && linkFixes !== null && linkFixes.length > 0 && (
+      {!isSpan && range !== null && linkFixes !== null && linkFixes.length > 0 && (
         <div className="adm-tiles">
           {linkFixes.map((fix) => (
             <button
@@ -180,6 +207,35 @@ export function PuzzleEditor({
               }
             >
               {fix.word}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isSpan && range !== null && rangeFixes !== null && rangeFixes.length > 0 && (
+        <div className="adm-tiles">
+          {rangeFixes.map((fix) => (
+            <button
+              key={`${fix.startIndex}-${fix.words.join('-')}`}
+              type="button"
+              className="adm-btn"
+              disabled={disabled || busy}
+              title={`${fix.source} — replaces rungs ${fix.startIndex + 1}-${
+                fix.startIndex + fix.words.length
+              }`}
+              onClick={() =>
+                void apply([
+                  ...edits,
+                  ...fix.words.map((word, offset) => ({
+                    field: 'solution' as const,
+                    removed: currentSolution[fix.startIndex + offset] ?? '',
+                    added: word,
+                    index: fix.startIndex + offset,
+                  })),
+                ])
+              }
+            >
+              {fix.words.join(' → ')}
             </button>
           ))}
         </div>
