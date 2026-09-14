@@ -12,8 +12,11 @@ import pytest
 
 from linkage_engine.config import Config
 from linkage_engine.data.stemming import IdentityStemmer, PorterStemmerAdapter
+from linkage_engine.domain import refine
+from linkage_engine.domain.decisions import Puzzle
 from linkage_engine.domain.distractors import SwapRefused, safe_swaps, swap_decoy
 from linkage_engine.domain.models import Path
+from linkage_engine.domain.pathfinder import has_chord
 from linkage_engine.domain.validator import is_uniquely_solvable
 
 CFG = Config(bank_size=8, bank_size_min=6, distractor_pool_size=50)
@@ -59,6 +62,11 @@ def path(graph):
 @pytest.fixture
 def bank():
     return ("dead1", "dead2", "w1", "w2", "w3", "w4")
+
+
+@pytest.fixture
+def puzzle(bank):
+    return Puzzle(start="s", end="e", solution=("w1", "w2", "w3", "w4"), bank=bank)
 
 
 def swap(graph, path, bank, removed, added, stemmer=None):
@@ -200,3 +208,86 @@ class TestSafeSwaps:
     def test_is_deterministic(self, graph, path, bank):
         first = safe_swaps(CFG, graph, IdentityStemmer(), path, bank, "dead1")
         assert first == safe_swaps(CFG, graph, IdentityStemmer(), path, bank, "dead1")
+
+
+# --------------------------------------------------------------------------
+# Suggestions for a flagged link, not just a decoy
+# --------------------------------------------------------------------------
+
+
+class TestSafeLinkFixes:
+    def test_offers_only_words_the_engine_would_accept(self, graph, bank, puzzle):
+        # `fix` connects both anchors of w2's slot -- a real candidate. Proof
+        # mirrors `validate_puzzle`'s own two checks (chordless, unique) --
+        # not the full function, since these fixture words ("s", "w1", ...)
+        # are graph-search shorthand, not real 3-12-letter puzzle words.
+        graph.add_edge("w1", "fix", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("fix", "w3", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=2)
+        assert options
+        for option in options:
+            nodes = puzzle.nodes
+            trial_nodes = nodes[: option.index + 1] + (option.word,) + nodes[option.index + 2 :]
+            assert not has_chord(graph, trial_nodes)
+            trial_bank = tuple(
+                option.word if w == puzzle.solution[option.index] else w for w in bank
+            )
+            assert is_uniquely_solvable(graph, "s", "e", trial_bank, CFG.chain_length)
+
+    def test_finds_the_common_neighbour_for_an_interior_link(self, graph, puzzle):
+        graph.add_edge("w1", "fix", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("fix", "w3", weight=2.5, relations=("RelatedTo",))
+        # Link 2 is w2 -> w3; it touches two rungs (w2 at index 1, w3 at
+        # index 2), and only w2's slot has a real candidate here.
+        options = refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=2)
+        assert any(o.word == "fix" and o.index == 1 for o in options)
+
+    def test_a_boundary_link_has_only_its_one_slot(self, graph, puzzle):
+        # Link 0 is start -> w1: the start itself is not a candidate for this
+        # feature, so only rung 0 (w1) can be offered a replacement.
+        graph.add_edge("s", "opener", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("opener", "w2", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=0)
+        assert any(o.word == "opener" and o.index == 0 for o in options)
+        assert all(o.index == 0 for o in options)
+
+    def test_never_offers_a_word_that_would_create_a_chord(self, graph, puzzle):
+        graph.add_edge("w1", "fix", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("fix", "w3", weight=2.5, relations=("RelatedTo",))
+        # `chordbait` is also a common neighbour of w1 and w3, but it also
+        # touches w4 -- a straight shortcut across the chain the moment it
+        # takes w2's slot.
+        graph.add_edge("w1", "chordbait", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("chordbait", "w3", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("chordbait", "w4", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=2)
+        assert "chordbait" not in {o.word for o in options}
+        assert "fix" in {o.word for o in options}
+
+    def test_never_offers_a_word_already_on_screen(self, graph, puzzle):
+        # `dead2` is already a decoy in the bank; wiring it as a second
+        # common neighbour of w1/w3 must not make it a suggestion.
+        graph.add_edge("w1", "dead2", weight=2.5, relations=("RelatedTo",))
+        options = refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=2)
+        assert "dead2" not in {o.word for o in options}
+
+    def test_honours_the_limit(self, graph, puzzle):
+        graph.add_edge("w1", "fix", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("fix", "w3", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("w1", "fix2", weight=2.4, relations=("RelatedTo",))
+        graph.add_edge("fix2", "w3", weight=2.4, relations=("RelatedTo",))
+        options = refine.safe_link_fixes(
+            CFG, graph, IdentityStemmer(), puzzle, bad_link=2, limit=1
+        )
+        assert len(options) <= 1
+
+    def test_is_deterministic(self, graph, puzzle):
+        graph.add_edge("w1", "fix", weight=2.5, relations=("RelatedTo",))
+        graph.add_edge("fix", "w3", weight=2.5, relations=("RelatedTo",))
+        first = refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=2)
+        second = refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=2)
+        assert first == second
+
+    def test_rejects_an_out_of_range_link(self, graph, puzzle):
+        with pytest.raises(ValueError, match="0..4"):
+            refine.safe_link_fixes(CFG, graph, IdentityStemmer(), puzzle, bad_link=5)

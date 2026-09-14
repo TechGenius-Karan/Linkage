@@ -27,12 +27,13 @@ from dataclasses import dataclass, field
 import networkx as nx
 
 from ..config import Config
-from .decisions import ManualEdge, Puzzle
+from .decisions import CHAIN_LINKS, ManualEdge, Puzzle
 from .distractors import overlaps_substring, shares_stem
+from .hubs import sorted_neighbours
 from .models import Path
 from .pathfinder import has_chord
 from .ports import Stemmer
-from .validator import chain_is_valid, solve_all
+from .validator import chain_is_valid, is_uniquely_solvable, solve_all
 
 #: Weight given to a link the reviewer asserted. `hints.obviousness()` ranks
 #: answer words by the strength of the links either side, so a hand edge needs
@@ -64,6 +65,16 @@ class Verdict:
     @property
     def ok(self) -> bool:
         return not self.refusals
+
+
+@dataclass(frozen=True, slots=True)
+class LinkFix:
+    """One candidate replacement for the solution word at `index`."""
+
+    index: int  # which rung, 0..3, this replaces
+    word: str
+    temptingness: float
+    source: str
 
 
 def augmented(graph: nx.Graph, edges: tuple[ManualEdge, ...]) -> nx.Graph:
@@ -238,3 +249,73 @@ def validate_puzzle(
         notes=tuple(notes),
         asserted_links=asserted,
     )
+
+
+def safe_link_fixes(
+    cfg: Config,
+    graph: nx.Graph,
+    stemmer: Stemmer,
+    puzzle: Puzzle,
+    bad_link: int,
+    manual_edges: tuple[ManualEdge, ...] = (),
+    limit: int = 8,
+) -> list[LinkFix]:
+    """Replacements for the solution word(s) touching a flagged link.
+
+    `distractors.safe_swaps` generalised from decoys to the chain itself: the
+    same two invariants (chordless, uniquely solvable), the same "never offer
+    the unsafe one" contract -- this just searches a solution slot instead of
+    the bank.
+
+    Rung `j` (0..3) sits at `nodes[j + 1]`, between `nodes[j]` and
+    `nodes[j + 2]`. Link `bad_link` (0..4) sits between `nodes[bad_link]` and
+    `nodes[bad_link + 1]`: the boundary links (0, 4) touch exactly one rung,
+    the interior links (1-3) touch two, and both are searched when they do --
+    there is no "which side did you mean" signal in the reviewer's single
+    link index, so this tries both rather than guessing.
+    """
+    if not 0 <= bad_link < CHAIN_LINKS:
+        raise ValueError(f"bad_link must be 0..{CHAIN_LINKS - 1}, got {bad_link}")
+
+    g = augmented(graph, manual_edges)
+    nodes = puzzle.nodes
+    last_rung = len(puzzle.solution) - 1
+    slots = sorted({j for j in (bad_link - 1, bad_link) if 0 <= j <= last_rung})
+
+    found: list[LinkFix] = []
+    for idx in slots:
+        old_word = nodes[idx + 1]
+        left, right = nodes[idx], nodes[idx + 2]
+        # Everything currently on screen, including `old_word` -- a candidate
+        # equal to any of these (old_word itself included, which would be a
+        # no-op "fix") is not a real suggestion.
+        on_screen = frozenset({*nodes, *puzzle.bank})
+        # For the stem/substring check only, `old_word` is excluded: it is
+        # leaving the screen, so a candidate that merely rhymes with the word
+        # it is replacing (not with anything staying) is not a conflict --
+        # the same reasoning `swap_decoy` applies to `removed`.
+        rest = on_screen - {old_word}
+
+        pool = sorted(set(sorted_neighbours(g, left)) & set(sorted_neighbours(g, right)))
+        scored: list[LinkFix] = []
+        for candidate in pool:
+            if candidate in on_screen:
+                continue
+            if shares_stem(stemmer, candidate, rest) or overlaps_substring(candidate, rest):
+                continue
+
+            trial_nodes = nodes[: idx + 1] + (candidate,) + nodes[idx + 2 :]
+            if cfg.enforce_chordless and has_chord(g, trial_nodes):
+                continue
+
+            trial_bank = tuple(candidate if w == old_word else w for w in puzzle.bank)
+            if not is_uniquely_solvable(g, puzzle.start, puzzle.end, trial_bank, cfg.chain_length):
+                continue
+
+            weight = g[left][candidate]["weight"] + g[candidate][right]["weight"]
+            scored.append(LinkFix(index=idx, word=candidate, temptingness=weight, source="link-fix"))
+
+        found.extend(scored)
+
+    found.sort(key=lambda f: (-f.temptingness, f.index, f.word))
+    return found[:limit]
