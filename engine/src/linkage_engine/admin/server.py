@@ -157,6 +157,18 @@ class AdminHandler(BaseHTTPRequestHandler):
                     self.cfg, self.graph(), need("hash"), need("removed"), edits(), edges()
                 )
             )
+        elif path == "/api/admin/link-fixes":
+            # Same shape as /swaps, aimed at a solution slot instead of a
+            # decoy: a read over POST for the same reason (unsaved edits).
+            raw_link = body.get("badLink")
+            if not isinstance(raw_link, int):
+                self._send(400, {"error": "badLink is required"})
+                return
+            self._run(
+                lambda: handlers.link_fix_options(
+                    self.cfg, self.graph(), need("hash"), raw_link, edits(), edges()
+                )
+            )
         elif path == "/api/admin/schedule":
             self._run(lambda: handlers.schedule(self.cfg, need("hash"), need("date")))
         elif path == "/api/admin/unschedule":

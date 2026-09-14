@@ -73,6 +73,7 @@ export function ReviewCard({
           edges={edges}
           state={state}
           disabled={busy}
+          badLink={badLink}
           onChange={(nextEdits, nextEdges, nextState) => {
             setEdits(nextEdits);
             setEdges(nextEdges);

@@ -289,6 +289,42 @@ class TestSwapOptions:
             handlers.swap_options(cfg, graph, "aaa", "absent")
 
 
+class TestLinkFixOptions:
+    def test_offers_only_words_the_engine_would_accept(self, cfg, graph):
+        # Link 0 is whale -> ocean; only rung 0 (ocean) touches it. `wave` is
+        # wired whale-wave-blue in the fixture, so it is a real candidate.
+        options = handlers.link_fix_options(cfg, graph, "aaa", 0)["options"]
+        assert options
+        for option in options:
+            result = handlers.edit(
+                cfg,
+                graph,
+                "aaa",
+                (
+                    dec.WordEdit(
+                        field="solution", removed="ocean", added=option["word"], index=option["index"]
+                    ),
+                ),
+            )
+            assert result["ok"], result["refusals"]
+
+    def test_finds_the_wired_candidate(self, cfg, graph):
+        options = handlers.link_fix_options(cfg, graph, "aaa", 0)["options"]
+        assert any(o["word"] == "wave" and o["index"] == 0 for o in options)
+
+    def test_shows_index_temptingness_and_source(self, cfg, graph):
+        options = handlers.link_fix_options(cfg, graph, "aaa", 0)["options"]
+        assert all("index" in o and "temptingness" in o and "source" in o for o in options)
+
+    def test_honours_the_limit(self, cfg, graph):
+        options = handlers.link_fix_options(cfg, graph, "aaa", 0, limit=0)["options"]
+        assert options == []
+
+    def test_rejects_an_out_of_range_link(self, cfg, graph):
+        with pytest.raises(handlers.BadRequest, match="0..4"):
+            handlers.link_fix_options(cfg, graph, "aaa", 7)
+
+
 class TestApproveWithEdits:
     def test_stores_the_edits_on_the_decision(self, cfg, graph):
         handlers.approve(cfg, "aaa", edits=(edit("cloud", "storm"),), graph=graph)

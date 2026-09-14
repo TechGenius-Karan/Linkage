@@ -384,6 +384,46 @@ def swap_options(
     }
 
 
+def link_fix_options(
+    cfg: Config,
+    graph: nx.Graph,
+    hash_: str,
+    bad_link: int,
+    edits: tuple[dec.WordEdit, ...] = (),
+    manual_edges: tuple[dec.ManualEdge, ...] = (),
+    limit: int = 8,
+) -> dict:
+    """Replacements for the rung(s) touching a flagged link (docs/admin.md 5.3).
+
+    The mirror of `swap_options`, aimed at the chain instead of the bank:
+    `bad_link` is the index a reviewer already records on reject, and this
+    is what finally reads it. Computed against the *effective* puzzle, same
+    as `swap_options`, so pending edits are accounted for.
+    """
+    rows, _ = _load_pair(cfg, hash_)
+    row = rows[hash_]
+    puzzle = _effective(row, edits)
+    try:
+        fixes = refine.safe_link_fixes(
+            cfg, graph, _STEMMER, puzzle, bad_link, manual_edges, limit=limit
+        )
+    except ValueError as exc:
+        raise BadRequest(str(exc)) from exc
+    return {
+        "hash": hash_,
+        "badLink": bad_link,
+        "options": [
+            {
+                "index": f.index,
+                "word": f.word,
+                "temptingness": round(f.temptingness, 2),
+                "source": f.source,
+            }
+            for f in fixes
+        ],
+    }
+
+
 # --------------------------------------------------------------------------
 # 6c -- the approved pool, and choosing a date (planning.md 16.2, 16.6)
 # --------------------------------------------------------------------------

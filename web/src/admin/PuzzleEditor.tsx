@@ -16,9 +16,11 @@
 
 import { useState } from 'react';
 import {
+  fetchLinkFixes,
   fetchSwapOptions,
   previewEdit,
   type EditResponse,
+  type LinkFixOption,
   type ManualEdge,
   type QueuePuzzle,
   type SwapOption,
@@ -33,6 +35,8 @@ export interface PuzzleEditorProps {
   state: EditResponse | null;
   onChange: (edits: WordEdit[], edges: ManualEdge[], state: EditResponse | null) => void;
   disabled: boolean;
+  /** The link the reviewer marked above, if any (docs/admin.md 5.3). */
+  badLink: number | null;
 }
 
 export function PuzzleEditor({
@@ -42,15 +46,18 @@ export function PuzzleEditor({
   state,
   onChange,
   disabled,
+  badLink,
 }: PuzzleEditorProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openDecoy, setOpenDecoy] = useState<string | null>(null);
   const [options, setOptions] = useState<SwapOption[] | null>(null);
+  const [linkFixes, setLinkFixes] = useState<LinkFixOption[] | null>(null);
 
   const chain = state?.chain ?? puzzle.chain;
   const bank = state?.bank ?? puzzle.bank;
-  const solution = new Set(state?.solution ?? puzzle.solution);
+  const currentSolution = state?.solution ?? puzzle.solution;
+  const solution = new Set(currentSolution);
   const decoys = bank.filter((w) => !solution.has(w)).sort();
 
   const apply = async (next: WordEdit[], nextEdges: ManualEdge[] = edges) => {
@@ -61,6 +68,7 @@ export function PuzzleEditor({
       onChange(next, nextEdges, result);
       setOpenDecoy(null);
       setOptions(null);
+      setLinkFixes(null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -98,6 +106,19 @@ export function PuzzleEditor({
     }
   };
 
+  const suggestLinkFixes = async () => {
+    if (badLink === null) return;
+    setLinkFixes(null);
+    setBusy(true);
+    try {
+      setLinkFixes((await fetchLinkFixes(puzzle.hash, badLink, edits, edges)).options);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const changes = edits.length + edges.length;
 
   return (
@@ -120,6 +141,49 @@ export function PuzzleEditor({
           </button>
         )}
       </div>
+
+      {badLink !== null && (
+        <div className="adm-section adm-section--tight">
+          <button
+            type="button"
+            className="adm-btn adm-btn--quiet"
+            disabled={disabled || busy}
+            onClick={() => void suggestLinkFixes()}
+          >
+            Suggest a fix for {chain[badLink]} → {chain[badLink + 1]}
+          </button>
+          {linkFixes !== null && linkFixes.length === 0 && (
+            <p className="adm-note">Nothing survives the uniqueness check.</p>
+          )}
+        </div>
+      )}
+
+      {badLink !== null && linkFixes !== null && linkFixes.length > 0 && (
+        <div className="adm-tiles">
+          {linkFixes.map((fix) => (
+            <button
+              key={`${fix.index}-${fix.word}`}
+              type="button"
+              className="adm-btn"
+              disabled={disabled || busy}
+              title={`${fix.source} — replaces rung ${fix.index + 1}`}
+              onClick={() =>
+                void apply([
+                  ...edits,
+                  {
+                    field: 'solution',
+                    removed: currentSolution[fix.index] ?? '',
+                    added: fix.word,
+                    index: fix.index,
+                  },
+                ])
+              }
+            >
+              {fix.word}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="adm-tiles">
         {chain.map((word, i) => (

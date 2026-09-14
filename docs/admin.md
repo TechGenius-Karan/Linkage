@@ -213,6 +213,31 @@ is what it actually is — nobody hand-tunes a puzzle they are going to reject.
 `approve` re-proves rather than trusting what the client sends: the check costs
 60 ms, and this is the one property the whole game rests on.
 
+#### 5.3 Suggesting a fix for the link itself, not just a decoy
+
+Swapping a decoy (§5) softens a bank. It does nothing for the harder
+complaint: one of the four *answer* words is weak, and finding a replacement
+that fits the slot, doesn't collide with the bank, and doesn't hand the
+player a second valid chain is exactly the kind of search a person is bad at
+and the graph search is good at.
+
+So the reviewer's `badLink` (0–4, already recorded on reject) gets a second
+job: click "Suggest a fix" and the engine searches for words that connect
+both of the flagged link's surviving anchors, then runs them through the same
+two checks a hand-typed replacement gets — chordless, uniquely solvable. A
+boundary link (0 or 4) touches exactly one solution word; an interior link
+(1–3) touches two, and both get searched, because the single link index
+carries no "which side" signal. Picking a suggestion is just another
+`WordEdit`, so it rides the same preview-until-approved pipeline as any other
+hand edit (§5.2) — there is no separate "commit" step for it.
+
+This is deliberately **not** an LLM rewriting the puzzle. The two invariants
+that matter — chordless, uniquely solvable — are graph facts about the actual
+ConceptNet graph, and only the search that already builds every puzzle can
+verify them. A model guessing plausible words and handing them to the same
+validator would just be generate-then-filter with extra latency, which is the
+one pattern this project's distractor logic was built to avoid.
+
 ### 6. The admin must never ship
 
 There is no server-side gate, so a deployed admin is an open door onto the

@@ -170,6 +170,29 @@ export const fetchSwapOptions = (
 ): Promise<{ options: SwapOption[] }> =>
   post('/api/admin/swaps', { hash, removed, edits, manualEdges });
 
+export interface LinkFixOption {
+  /** Which rung (0-3) this would replace. */
+  index: number;
+  word: string;
+  temptingness: number;
+  source: string;
+}
+
+/**
+ * Replacements for the rung(s) touching a flagged link.
+ *
+ * `badLink` is the same 0..4 index already recorded on reject — this is what
+ * finally reads it. A boundary link (0, 4) touches one rung; an interior one
+ * touches two, and both are searched, so the response may name either index.
+ */
+export const fetchLinkFixes = (
+  hash: string,
+  badLink: number,
+  edits: WordEdit[],
+  manualEdges: ManualEdge[] = [],
+): Promise<{ options: LinkFixOption[] }> =>
+  post('/api/admin/link-fixes', { hash, badLink, edits, manualEdges });
+
 // --------------------------------------------------------------------------
 // The pool, and choosing a date (docs/admin.md 7, 8, 12.2)
 // --------------------------------------------------------------------------
