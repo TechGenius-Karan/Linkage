@@ -49,7 +49,12 @@ export function Header({
     <header className="flex items-center justify-between gap-3">
       <div className="flex items-baseline gap-2">
         <span className="font-word text-[19px] font-semibold tracking-[0.01em]">Linkage</span>
-        <span className="text-[17px] font-medium text-ink-muted">#{puzzleNumber}</span>
+        {/* Puzzle #1 is EPOCH_DATE; anything before that is pre-launch and has
+            no real number yet (engine/dailyIndex.ts) -- show nothing rather
+            than a confusing negative count. */}
+        {puzzleNumber >= 1 && (
+          <span className="text-[17px] font-medium text-ink-muted">#{puzzleNumber}</span>
+        )}
       </div>
 
       <div className="flex items-center gap-1">

@@ -22,11 +22,14 @@ import { PuzzleNotFound, type GameState, type Puzzle } from './engine/types';
 import { Board } from './ui/Board';
 import { Header } from './ui/Header';
 import { HowToPlayModal } from './ui/HowToPlayModal';
+import { RestingMoonIcon } from './ui/icons';
 import { SettingsModal } from './ui/SettingsModal';
 import { StatsModal } from './ui/StatsModal';
 import { SubmitBar } from './ui/SubmitBar';
 import { Timer } from './ui/Timer';
 import { WordBank } from './ui/WordBank';
+
+type Panel = 'stats' | 'howto' | 'settings' | null;
 
 type Screen =
   | { kind: 'loading' }
@@ -57,6 +60,11 @@ export function App({ repo, store }: AppProps) {
   const [screen, setScreen] = useState<Screen>({ kind: 'loading' });
   const [id, setId] = useState(() => requestedPuzzleNumber(new Date()));
   const [newDayAvailable, setNewDayAvailable] = useState(false);
+  // Lives here, not inside Game: settings/stats/how-to-play don't need a
+  // loaded puzzle (SettingsModal is pure theme, HowToPlayModal is static
+  // rules, StatsModal reads store.readStats() directly), so the icons that
+  // open them must work on the loading/missing/error screens too.
+  const [panel, setPanel] = useState<Panel>(null);
 
   const load = useCallback(
     (puzzleId: number) => {
@@ -115,14 +123,24 @@ export function App({ repo, store }: AppProps) {
               setNewDayAvailable(false);
               setId(requestedPuzzleNumber(new Date()));
             }}
+            setPanel={setPanel}
           />
         ) : (
           <>
-            <Header puzzleNumber={id} />
+            <Header
+              puzzleNumber={id}
+              onStats={() => setPanel('stats')}
+              onHowToPlay={() => setPanel('howto')}
+              onSettings={() => setPanel('settings')}
+            />
             <Placeholder screen={screen} onRetry={() => load(id)} />
           </>
         )}
       </div>
+
+      <StatsModal open={panel === 'stats'} onClose={() => setPanel(null)} stats={store.readStats()} />
+      <HowToPlayModal open={panel === 'howto'} onClose={() => setPanel(null)} />
+      <SettingsModal open={panel === 'settings'} onClose={() => setPanel(null)} />
     </div>
   );
 }
@@ -135,9 +153,25 @@ function Placeholder({ screen, onRetry }: { screen: Screen; onRetry: () => void 
   }
   if (screen.kind === 'missing') {
     return (
-      <p className="py-16 text-center text-[15px] text-ink-muted">
-        No puzzle today. Come back tomorrow.
-      </p>
+      <div className="flex flex-col items-center gap-3 py-14 text-center">
+        <span className="relative grid place-items-center">
+          <span aria-hidden="true" className="moon-halo" />
+          <RestingMoonIcon className="moon-glow" />
+        </span>
+        {/* Deliberately not `font-word` (the serif used for the wordmark and
+            in-game words) -- that read too formal for a line whose whole job
+            is to be a light, comforting aside. A system handwriting-style
+            stack keeps it playful without pulling in a webfont. */}
+        <p
+          className="text-[18px] font-semibold text-ink"
+          style={{ fontFamily: "'Segoe Print', 'Chalkboard SE', 'Comic Sans MS', cursive" }}
+        >
+          Today&rsquo;s chain hasn&rsquo;t been forged yet.
+        </p>
+        <p className="max-w-[240px] text-[14px] text-ink-muted">
+          Linkage rests overnight. Come back tomorrow and pick the links back up.
+        </p>
+      </div>
     );
   }
   return (
@@ -159,9 +193,10 @@ interface GameProps {
   store: ProgressStore;
   newDayAvailable: boolean;
   onPlayToday: () => void;
+  setPanel: (panel: Panel) => void;
 }
 
-function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
+function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GameProps) {
   const reducer = useMemo(() => makeGameReducer(puzzle), [puzzle]);
   const [state, dispatch] = useReducer(
     reducer,
@@ -216,8 +251,6 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
     setHintFlash(true);
     setTimeout(() => setHintFlash(false), 1_500);
   }, []);
-
-  const [panel, setPanel] = useState<'stats' | 'howto' | 'settings' | null>(null);
 
   const elapsed = elapsedMs(state, now);
   const lastAttempt = state.attempts.at(-1);
@@ -284,10 +317,6 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday }: GameProps) {
         confirmed={state.hintsUsed}
         onTileClick={over ? undefined : (tileId) => dispatch({ type: 'SELECT_TILE', tileId })}
       />
-
-      <StatsModal open={panel === 'stats'} onClose={() => setPanel(null)} stats={store.readStats()} />
-      <HowToPlayModal open={panel === 'howto'} onClose={() => setPanel(null)} />
-      <SettingsModal open={panel === 'settings'} onClose={() => setPanel(null)} />
     </>
   );
 }

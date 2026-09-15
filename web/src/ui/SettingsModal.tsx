@@ -49,7 +49,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
 
         <button
           type="button"
-          className="ring-focus min-h-12 rounded-lg border border-rule text-[15px] font-semibold text-ink-muted"
+          className="ring-focus h-[50px] w-full rounded-[15px] bg-accent text-[15.5px] font-bold tracking-[0.005em] text-ground transition-[filter,transform] hover:brightness-[1.07] active:scale-[0.99]"
           onClick={onClose}
         >
           Close

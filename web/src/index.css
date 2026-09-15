@@ -34,6 +34,11 @@
   --accent: light-dark(#2f6f63, #6fb5a5);
   --accent-sub: light-dark(#e7efec, #23332f);
   --heart: light-dark(#c96f4a, #e29068);
+  /* The empty-state moon only (RestingMoonIcon) -- a warm gold rather than a
+     cold bright yellow, so it reads as candlelight against the paper ground
+     instead of a caution colour. */
+  --moon: light-dark(#e8a839, #ffd166);
+  --moon-glow: light-dark(rgb(232 168 57 / 55%), rgb(255 209 102 / 60%));
 
   --type-word: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --type-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -61,6 +66,7 @@
   --color-accent: var(--accent);
   --color-accent-sub: var(--accent-sub);
   --color-heart: var(--heart);
+  --color-moon: var(--moon);
 
   --font-word: var(--type-word);
   --font-ui: var(--type-ui);
@@ -245,12 +251,55 @@ a:hover {
   .animate-feedback-in {
     animation: feedback-in 180ms ease-out;
   }
+
+  /* The empty-state moon (RestingMoonIcon). Sits above `.moon-halo` in the
+     same wrapper; the icon's own glow is layered `drop-shadow`s (follows the
+     crescent's silhouette, not a box) and the halo behind it is a blurred
+     radial gradient (a soft field, not a shape). Both breathe slowly rather
+     than sitting static -- a nightlight, not an alert. */
+  .moon-glow {
+    position: relative;
+    z-index: 1;
+    color: var(--moon);
+    animation: moon-breathe 4s ease-in-out infinite;
+  }
+  .moon-halo {
+    position: absolute;
+    inset: -22px;
+    z-index: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--moon-glow), transparent 70%);
+    filter: blur(8px);
+    animation: moon-halo-breathe 4s ease-in-out infinite;
+  }
 }
 
 @keyframes feedback-in {
   from {
     opacity: 0;
     transform: translateY(2px);
+  }
+}
+
+@keyframes moon-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px var(--moon-glow)) drop-shadow(0 0 14px var(--moon-glow));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px var(--moon-glow)) drop-shadow(0 0 24px var(--moon-glow));
+  }
+}
+
+@keyframes moon-halo-breathe {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
   }
 }
 

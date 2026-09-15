@@ -7,6 +7,7 @@
  */
 
 import { HINT_TIME_PENALTY_MS } from '../engine/types';
+import { TimerIcon } from './icons';
 
 export interface TimerProps {
   elapsedMs: number;
@@ -28,6 +29,9 @@ export function Timer({ elapsedMs, hintFlash }: TimerProps) {
       role="timer"
       aria-label={`Elapsed time ${formatTime(elapsedMs)}`}
     >
+      <span aria-hidden="true" className="text-accent">
+        <TimerIcon size={16} />
+      </span>
       <span aria-hidden="true">{formatTime(elapsedMs)}</span>
       {hintFlash && (
         <span aria-hidden="true" className="animate-pulse text-[13px] font-semibold text-heart">
