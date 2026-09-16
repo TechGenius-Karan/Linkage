@@ -32,11 +32,12 @@ class TestApprove:
 
 
 class TestReject:
-    def test_needs_a_reason(self):
-        # A rejection with no reason teaches the next generation nothing, and
-        # rebuilding the scorer from verdicts is the reason they are stored.
-        with pytest.raises(d.DecisionError, match="needs a reason"):
-            d.reject(TODAY, reason="   ")
+    def test_a_reason_is_optional(self):
+        # A reviewer must be able to reject on the spot without one blocking
+        # them -- but capture it as `None`, not `""`, so "not given" reads
+        # the same as every other unrecorded field.
+        assert d.reject(TODAY).reason is None
+        assert d.reject(TODAY, reason="   ").reason is None
 
     def test_records_which_link_failed(self):
         decision = d.reject(TODAY, reason="sailing to fun is a stretch", bad_link=2)

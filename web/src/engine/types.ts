@@ -42,9 +42,6 @@ export const THEME_KEY = 'linkage:v1:theme';
 /** `system` means "follow the OS", and is the absence of an override. */
 export type ThemePreference = 'light' | 'dark' | 'system';
 
-/** First puzzle's date. Month is 1-indexed here and converted at the boundary. */
-export const EPOCH_DATE = '2026-10-01';
-
 export interface Puzzle {
   schemaVersion: number;
   id: number;

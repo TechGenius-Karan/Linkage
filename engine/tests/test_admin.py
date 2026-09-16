@@ -34,7 +34,7 @@ def candidate_row(hash_: str, quality: float = 0.8) -> dict:
 def cfg(tmp_path):
     # A miniature bank: the fixture predates `validate_puzzle`, which enforces
     # the real 10-12 range that a generated bank always satisfies.
-    config = Config(repo_root=tmp_path, bank_size_min=6)
+    config = Config(repo_root=tmp_path, bank_size_min=6, epoch_date="2026-10-01")
     config.candidates_path.parent.mkdir(parents=True, exist_ok=True)
     config.candidates_path.write_text(
         json.dumps([candidate_row("aaa", 0.9), candidate_row("bbb", 0.5), candidate_row("ccc", 0.7)]),
@@ -123,9 +123,13 @@ class TestReject:
         assert stored.bad_link == 3
         assert "stretch" in (stored.reason or "")
 
-    def test_requires_a_reason(self, cfg):
-        with pytest.raises(handlers.BadRequest, match="needs a reason"):
-            handlers.reject(cfg, "aaa", "   ")
+    def test_a_reason_is_optional(self, cfg):
+        # A reviewer must be able to reject on the spot without one blocking
+        # them; a blank reason is stored as None rather than an empty string.
+        handlers.reject(cfg, "aaa", "   ")
+        stored = exporters.read_decisions(cfg.decisions_path)["aaa"]
+        assert stored.verdict == dec.REJECT
+        assert stored.reason is None
 
     def test_rejects_an_out_of_range_link(self, cfg):
         with pytest.raises(handlers.BadRequest, match="bad_link"):
@@ -419,9 +423,9 @@ class TestPool:
         assert [p["hash"] for p in handlers.pool(cfg)["pooled"]] == ["aaa", "ccc", "bbb"]
 
     def test_offers_a_contiguous_run_of_slots(self, cfg):
-        # Dates are not free-form: `date == epoch + (id - 1)` days is the
-        # archive's one hard invariant, so a puzzle occupies a slot in an
-        # unbroken run rather than any day the reviewer fancies.
+        # The picker offers a contiguous run of upcoming calendar days, so
+        # the archive never grows a hole nobody chose -- a day within it can
+        # still ship with no puzzle if the reviewer just never schedules one.
         slots = handlers.pool(cfg)["slots"]
         assert [s["date"] for s in slots[:3]] == ["2026-10-01", "2026-10-02", "2026-10-03"]
         assert all(s["hash"] is None for s in slots)

@@ -133,9 +133,12 @@ class AdminHandler(BaseHTTPRequestHandler):
                 )
             )
         elif path == "/api/admin/reject":
+            # A reason is optional (planning.md 16.2) -- a reviewer must be
+            # able to reject on the spot without it blocking them.
+            reason = body.get("reason")
             self._run(
                 lambda: handlers.reject(
-                    self.cfg, need("hash"), need("reason"), body.get("badLink")
+                    self.cfg, need("hash"), reason if isinstance(reason, str) else "", body.get("badLink")
                 )
             )
         elif path == "/api/admin/undo":

@@ -18,8 +18,12 @@ export interface PuzzleRepository {
    * `PuzzleInvalid` when it exists but is malformed. Every implementation
    * must use the same error types — a stub that resolved `null` instead
    * would break every consumer relying on the contract (planning.md 5, L).
+   *
+   * Takes a date, not an id — the archive may skip a day (planning.md 3.3),
+   * so an id cannot be derived without already knowing what shipped. The
+   * returned `Puzzle` carries its own id.
    */
-  load(id: number, date: string): Promise<Puzzle>;
+  load(date: string): Promise<Puzzle>;
 }
 
 export interface ProgressStore {

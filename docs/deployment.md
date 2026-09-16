@@ -33,7 +33,7 @@ was host-specific:
 | `base` path set correctly | `vite.config.ts`, `main.tsx` | Now `base: '/'` (was `/Linkage/'` under the Pages plan) — Netlify roots the site, so this is Vite's default rather than a value to get right. |
 | LICENSE / attribution present | `LICENSE`, `README.md`, `puzzles/README.md` | Present, unaffected by the hosting change. |
 | Favicon, OG/meta tags | `index.html` | Still neither exists — unaffected by the hosting change, still an outstanding Phase 5 item. |
-| `EPOCH_DATE` | `engine/config.py` | `2026-10-01`. |
+| `EPOCH_DATE` | `engine/config.py` | `2026-09-16`. |
 
 **What this means:** the game itself is deployment-ready as code, on any
 static host. The deployment *machinery* and the *content* that would run
@@ -327,7 +327,7 @@ are affected by the platform switch.
 - [ ] First real `linkage export` run; `manifest.json` count reflects it
 - [ ] `pytest` green against the real `verification-subgraph.json`
 - [ ] First deploy to the live Netlify URL; manual check per Tier 5
-- [ ] `EPOCH_DATE` (2026-10-01) confirmed still the intended launch date
+- [ ] `EPOCH_DATE` (2026-09-16) confirmed still the intended launch date
 
 ---
 

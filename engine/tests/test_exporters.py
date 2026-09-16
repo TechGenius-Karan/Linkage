@@ -51,6 +51,23 @@ def test_id_and_date_stay_in_lockstep_across_a_month_boundary():
         assert puzzle.date == (epoch + timedelta(days=puzzle.id - 1)).isoformat()
 
 
+def test_assign_to_dates_uses_the_caller_supplied_dates():
+    dated = [
+        ("2026-10-01", make_candidate(start="a")),
+        ("2026-10-02", make_candidate(start="b")),
+        ("2026-10-04", make_candidate(start="c")),  # 10-03 skipped
+    ]
+    puzzles = exporters.assign_to_dates(dated)
+    assert [p.id for p in puzzles] == [1, 2, 3]
+    assert [p.date for p in puzzles] == ["2026-10-01", "2026-10-02", "2026-10-04"]
+
+
+def test_assign_to_dates_honours_first_id():
+    dated = [("2026-10-04", make_candidate())]
+    puzzles = exporters.assign_to_dates(dated, first_id=7)
+    assert puzzles[0].id == 7
+
+
 def test_content_hash_is_stable_and_survives_a_reshuffled_bank():
     """Review decisions are keyed by this, so a new shuffle must not orphan a
     judgement a person already made (planning.md 7.7)."""

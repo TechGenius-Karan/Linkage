@@ -43,7 +43,6 @@ export function ReviewCard({
   const [edges, setEdges] = useState<ManualEdge[]>(puzzle.manualEdges);
   const [state, setState] = useState<EditResponse | null>(null);
 
-  const canReject = reason.trim().length > 0;
   const blocked = (state?.refusals.length ?? 0) > 0;
   const chain = state?.chain ?? puzzle.chain;
   const range: [number, number] | null =
@@ -114,8 +113,7 @@ export function ReviewCard({
           type="button"
           className="adm-btn adm-btn--no"
           onClick={() => onReject(reason.trim(), badLink)}
-          disabled={busy || !canReject}
-          title={canReject ? undefined : 'A rejection needs a reason'}
+          disabled={busy}
         >
           Reject
         </button>

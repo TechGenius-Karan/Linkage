@@ -7,7 +7,6 @@
  * else.
  */
 
-import { dateForPuzzleNumber } from '../engine/dailyIndex';
 import { decode } from './codec';
 import type { PuzzleRepository } from '../engine/ports';
 import {
@@ -79,12 +78,6 @@ export function validatePuzzle(value: unknown, expectedDate?: string): Puzzle {
   const notAnswers = hints.filter((w) => !solution.includes(w));
   if (notAnswers.length > 0) return bad(`hints name non-answers: ${notAnswers.join(', ')}`);
 
-  // A drift between id and date would show the wrong puzzle number in every
-  // share, which is the one error nobody would notice until it was everywhere.
-  const scheduled = dateForPuzzleNumber(p['id']);
-  if (p['date'] !== scheduled) {
-    return bad(`id ${p['id']} implies ${scheduled} but date says ${p['date']}`);
-  }
   if (expectedDate !== undefined && p['date'] !== expectedDate) {
     return bad(`served as ${expectedDate} but claims ${p['date']}`);
   }
@@ -104,13 +97,14 @@ export function validatePuzzle(value: unknown, expectedDate?: string): Puzzle {
 export class HttpPuzzleRepository implements PuzzleRepository {
   constructor(private readonly baseUrl: string) {}
 
-  async load(id: number, date: string): Promise<Puzzle> {
+  async load(date: string): Promise<Puzzle> {
     const res = await fetch(`${this.baseUrl}puzzles/${date}.json`);
 
     // 404 means the puzzle does not exist — a different state from the network
-    // being down, and the two want different screens (planning.md 8.7).
+    // being down, and the two want different screens (planning.md 8.7). It is
+    // also the only signal a skipped day gives; there is no id to name it by.
     if (res.status === 404) throw new PuzzleNotFound(date);
-    if (!res.ok) throw new Error(`Failed to load puzzle ${id}: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`Failed to load puzzle for ${date}: HTTP ${res.status}`);
 
     const envelope = (await res.json()) as unknown;
     if (typeof envelope !== 'object' || envelope === null) {

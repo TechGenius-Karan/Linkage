@@ -173,19 +173,21 @@ def approve(
     )
 
 
-def reject(decided_at: str, *, reason: str, bad_link: int | None = None) -> Decision:
-    """Reject, with a reason that is not optional.
+def reject(decided_at: str, *, reason: str = "", bad_link: int | None = None) -> Decision:
+    """Reject, with an optional reason.
 
-    A rejection with no reason teaches the next generation nothing, and the
-    whole point of storing verdicts is that they eventually rebuild the quality
-    scorer (planning.md 7.7.3).
+    A reason is not required -- a reviewer must be able to reject on the spot
+    without it blocking them -- but one is still worth capturing when given:
+    it is the single most useful signal from the first real review round, and
+    the whole point of storing verdicts is that they eventually rebuild the
+    quality scorer (planning.md 7.7.3). Blank collapses to `None` rather than
+    `""` so a reason genuinely not given reads the same as every other
+    unrecorded field.
     """
-    if not reason.strip():
-        raise DecisionError("a rejection needs a reason")
     return Decision(
         verdict=REJECT,
         decided_at=decided_at,
-        reason=reason.strip(),
+        reason=reason.strip() or None,
         bad_link=bad_link,
     )
 

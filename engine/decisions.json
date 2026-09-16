@@ -11,7 +11,7 @@
   "02219d055d0e4f5c": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
+    "date": "2026-09-20",
     "decidedAt": "2026-09-14",
     "manualEdges": [],
     "reason": null,
@@ -44,6 +44,15 @@
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
+  "16d32e6c5fef6e56": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "i like the puzzle but this connection is a bit weak",
+    "verdict": "reject"
+  },
   "173d38ae51e7771b": {
     "badLink": null,
     "bankEdits": [],
@@ -52,6 +61,24 @@
     "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
+  },
+  "18711d5662b98c44": {
+    "badLink": 3,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "this does not make any sense",
+    "verdict": "reject"
+  },
+  "20a05b9c5c9ef8a0": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": "2026-09-23",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
   },
   "20d9184884ad518b": {
     "badLink": null,
@@ -78,6 +105,15 @@
     "decidedAt": "2026-09-05",
     "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "26831b9014398dc2": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "what does associate have anything to do with bride",
     "verdict": "reject"
   },
   "29b3794d242398f3": {
@@ -110,17 +146,35 @@
   "35bee23546d58589": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
+    "date": "2026-09-19",
     "decidedAt": "2026-09-10",
     "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
+  "35bff90681d74144": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "reject"
+  },
   "38a95ee8ef625b36": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
+    "date": "2026-10-03",
     "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "3ae06ea257bb495a": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
     "manualEdges": [],
     "reason": null,
     "verdict": "accept"
@@ -142,6 +196,55 @@
     "manualEdges": [],
     "reason": "this is the point where the puzzle kind of fails as the options in the word bank are closely related and could easily replace this and also notebook isnt closesly related to notebook as well, it feels like its taking a different path or direction.",
     "verdict": "reject"
+  },
+  "41bbbfec6d68cbb6": {
+    "badLink": null,
+    "bankEdits": [
+      {
+        "added": "god",
+        "field": "end",
+        "removed": "farmer"
+      },
+      {
+        "added": "omnipotent",
+        "field": "bank",
+        "removed": "crops"
+      },
+      {
+        "added": "assistant",
+        "field": "bank",
+        "removed": "sketch"
+      }
+    ],
+    "date": "2026-09-24",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [
+      [
+        "creator",
+        "god",
+        2.0
+      ]
+    ],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "42525de8f36ee3f0": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "what does books have to do with monkey",
+    "verdict": "reject"
+  },
+  "441b0dc487a74380": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
   },
   "4422abec06f3695a": {
     "badLink": 2,
@@ -166,6 +269,15 @@
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-10",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "4c9633b9a3735196": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": "2026-09-27",
+    "decidedAt": "2026-09-15",
     "manualEdges": [],
     "reason": null,
     "verdict": "accept"
@@ -224,12 +336,75 @@
     "reason": "this link is too vage, broad and isnt directly related to it at all. also the freeway to america is also a bad link.",
     "verdict": "reject"
   },
-  "66898f743924cd8f": {
+  "61cd6a2f7a950f84": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
-    "decidedAt": "2026-09-11",
+    "date": "2026-09-28",
+    "decidedAt": "2026-09-15",
     "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "62eabad5ed398d3d": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "why is remembering give pain",
+    "verdict": "reject"
+  },
+  "642d41583abc49e8": {
+    "badLink": 3,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "no relation",
+    "verdict": "reject"
+  },
+  "642e96750d500757": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "just no",
+    "verdict": "reject"
+  },
+  "65495cf57e917c38": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "reject"
+  },
+  "66898f743924cd8f": {
+    "badLink": null,
+    "bankEdits": [
+      {
+        "added": "sports",
+        "field": "solution",
+        "index": 3,
+        "removed": "dancing"
+      },
+      {
+        "added": "shell",
+        "field": "bank",
+        "removed": "disco"
+      }
+    ],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [
+      [
+        "sports",
+        "fatigue",
+        2.0
+      ]
+    ],
     "reason": null,
     "verdict": "accept"
   },
@@ -242,28 +417,82 @@
     "reason": "only this clue is altering the puzzle rest all is fine. as the connection between pencil and cup is very weak",
     "verdict": "reject"
   },
+  "6b493d600da7f244": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": "2026-09-29",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
   "6c28ef93a3f9bb7f": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
+    "date": "2026-10-05",
     "decidedAt": "2026-09-05",
     "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
+  "707e37c5fed106d3": {
+    "badLink": 4,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "this does not make sense",
+    "verdict": "reject"
+  },
   "712d7d8910c5b826": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
+    "date": "2026-10-04",
     "decidedAt": "2026-09-11",
     "manualEdges": [],
     "reason": null,
     "verdict": "accept"
   },
+  "73d901561fdf5432": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "no relation",
+    "verdict": "reject"
+  },
+  "756f7970844b0189": {
+    "badLink": 3,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "not all pens are made from plastic",
+    "verdict": "reject"
+  },
+  "7894bf0be1f13ce2": {
+    "badLink": 4,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "a rand is a bad word in some languages so lets not go with this word",
+    "verdict": "reject"
+  },
+  "79476be13ff6030b": {
+    "badLink": 3,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "no one keeps their fridge in the garage",
+    "verdict": "reject"
+  },
   "7ab05b27dd1af608": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
+    "date": "2026-09-17",
     "decidedAt": "2026-09-05",
     "manualEdges": [],
     "reason": null,
@@ -290,11 +519,29 @@
   "844556ae05d12713": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
-    "decidedAt": "2026-09-05",
+    "date": "2026-09-16",
+    "decidedAt": "2026-09-15",
     "manualEdges": [],
     "reason": null,
     "verdict": "accept"
+  },
+  "849942088f792d77": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "the rest of the puzzle is good but this link does not make sense",
+    "verdict": "reject"
+  },
+  "862ac166b97edfba": {
+    "badLink": 4,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "a dessert is the last meal you at the end of dinner and lizard has no relation to this dessert.",
+    "verdict": "reject"
   },
   "86b9c3d6062f81c7": {
     "badLink": null,
@@ -304,6 +551,15 @@
     "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
+  },
+  "86c510122ab2a6a7": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
   },
   "8939bad23d5e747e": {
     "badLink": null,
@@ -350,6 +606,15 @@
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
+  "95930f489d76a163": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "not a strong association",
+    "verdict": "reject"
+  },
   "95eb1ef5d1f4dd84": {
     "badLink": 2,
     "bankEdits": [],
@@ -366,6 +631,24 @@
     "decidedAt": "2026-09-05",
     "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "9c2e6ff019326bd4": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "does not make any sense at all",
+    "verdict": "reject"
+  },
+  "a09cfc813f119f08": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "not a strong relation",
     "verdict": "reject"
   },
   "a11a230bda3b23a2": {
@@ -395,6 +678,33 @@
     "reason": "reading isn't necessarily fun for everyone and isnt a defintive attribute especially for something like reading or learning as many kids and sometimes even older people may find it uninteresting so it should not be taken as a connection",
     "verdict": "reject"
   },
+  "af79cd8ba52a6cb4": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "no relation",
+    "verdict": "reject"
+  },
+  "b034e3243b0c4480": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "b8733c4da24addab": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "a screen does not have a strong relation to covering",
+    "verdict": "reject"
+  },
   "bb51c53b51deb727": {
     "badLink": null,
     "bankEdits": [
@@ -422,7 +732,7 @@
         "removed": "roof"
       }
     ],
-    "date": null,
+    "date": "2026-09-21",
     "decidedAt": "2026-09-14",
     "manualEdges": [
       [
@@ -434,6 +744,81 @@
     "reason": null,
     "verdict": "accept"
   },
+  "bd0da6cc5df42e6c": {
+    "badLink": null,
+    "bankEdits": [
+      {
+        "added": "meal",
+        "field": "bank",
+        "removed": "fish"
+      },
+      {
+        "added": "sea",
+        "field": "solution",
+        "index": 2,
+        "removed": "spoon"
+      },
+      {
+        "added": "table",
+        "field": "bank",
+        "removed": "salt"
+      },
+      {
+        "added": "salt",
+        "field": "solution",
+        "index": 3,
+        "removed": "dinner"
+      },
+      {
+        "added": "fish",
+        "field": "solution",
+        "index": 1,
+        "removed": "eating"
+      },
+      {
+        "added": "guitar",
+        "field": "bank",
+        "removed": "pike"
+      },
+      {
+        "added": "sheep",
+        "field": "bank",
+        "removed": "table"
+      }
+    ],
+    "date": "2026-10-02",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "bd56edf331bb3f4d": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "bf100873b55c2af5": {
+    "badLink": 4,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "this puzzle fails due to the options in the word bank as many other things also fit",
+    "verdict": "reject"
+  },
+  "bf745dc57b63d035": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "a jelly is not something associated with jar at all",
+    "verdict": "reject"
+  },
   "c0ae27b17916cdc0": {
     "badLink": 1,
     "bankEdits": [],
@@ -443,11 +828,55 @@
     "reason": "nope the connections is too vague",
     "verdict": "reject"
   },
+  "c152b75784be9d0f": {
+    "badLink": null,
+    "bankEdits": [
+      {
+        "added": "claws",
+        "field": "start",
+        "removed": "bay"
+      },
+      {
+        "added": "bear",
+        "field": "bank",
+        "removed": "sweet"
+      }
+    ],
+    "date": "2026-09-26",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [
+      [
+        "claws",
+        "crab",
+        2.0
+      ]
+    ],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "c200130e0c52c044": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": "2026-09-22",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
   "c207405cf03b251b": {
     "badLink": 1,
     "bankEdits": [],
     "date": null,
     "decidedAt": "2026-09-11",
+    "manualEdges": [],
+    "reason": "no relation",
+    "verdict": "reject"
+  },
+  "c4430c6b5a510501": {
+    "badLink": 0,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
     "manualEdges": [],
     "reason": "no relation",
     "verdict": "reject"
@@ -470,6 +899,33 @@
     "reason": "Reason not recorded — round-01 predates structured reasons.",
     "verdict": "reject"
   },
+  "c91adde1d42fdaff": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "no relation",
+    "verdict": "reject"
+  },
+  "d4ca3ea831c010f9": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": "2026-10-01",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "d551c68b50d3c83d": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": "2026-09-25",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
   "d5f5aff1bcf46efa": {
     "badLink": null,
     "bankEdits": [],
@@ -477,6 +933,33 @@
     "decidedAt": "2026-09-05",
     "manualEdges": [],
     "reason": "Reason not recorded — round-01 predates structured reasons.",
+    "verdict": "reject"
+  },
+  "db20efa9afebf45a": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "accept"
+  },
+  "dd5de9e0eccff783": {
+    "badLink": null,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": null,
+    "verdict": "reject"
+  },
+  "dfdd8d87afb6cba3": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "no this is a repeating link you have been making and i do not want this",
     "verdict": "reject"
   },
   "dff0dd00e3d5a5c0": {
@@ -488,6 +971,24 @@
     "reason": null,
     "verdict": "accept"
   },
+  "e1d1e12722ce586a": {
+    "badLink": 1,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "how is neck above",
+    "verdict": "reject"
+  },
+  "e640e01c39bdacd0": {
+    "badLink": 4,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "this is a bit ambigous and not a strong connection. a symbol could mean many things and ring does not come under it.",
+    "verdict": "reject"
+  },
   "ea919c607764e670": {
     "badLink": 1,
     "bankEdits": [],
@@ -496,6 +997,27 @@
     "manualEdges": [],
     "reason": "handle and brush arent closely related and is too vague as handle could be a part of many items and things and doesent have any actual relation with brush",
     "verdict": "reject"
+  },
+  "ebfbb457da88b592": {
+    "badLink": null,
+    "bankEdits": [
+      {
+        "added": "twirl",
+        "field": "start",
+        "removed": "extension"
+      }
+    ],
+    "date": "2026-09-30",
+    "decidedAt": "2026-09-15",
+    "manualEdges": [
+      [
+        "twirl",
+        "dance",
+        2.0
+      ]
+    ],
+    "reason": null,
+    "verdict": "accept"
   },
   "ec60f0216a411e4d": {
     "badLink": 1,
@@ -515,13 +1037,31 @@
     "reason": "a stupid and no correlation at all link",
     "verdict": "reject"
   },
+  "fa40bd05d1c0327e": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "this does not make sense",
+    "verdict": "reject"
+  },
   "fa7037ed55fd4f53": {
     "badLink": null,
     "bankEdits": [],
-    "date": null,
+    "date": "2026-09-18",
     "decidedAt": "2026-09-05",
     "manualEdges": [],
     "reason": null,
     "verdict": "accept"
+  },
+  "fad45a8f71ad5284": {
+    "badLink": 2,
+    "bankEdits": [],
+    "date": null,
+    "decidedAt": "2026-09-15",
+    "manualEdges": [],
+    "reason": "what does universe and content even have to do with each other",
+    "verdict": "reject"
   }
 }

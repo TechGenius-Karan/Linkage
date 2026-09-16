@@ -11,7 +11,6 @@ uniqueness guarantee nobody can check on a pull request is not a guarantee.
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
 
 import pytest
 
@@ -20,8 +19,15 @@ from linkage_engine.data.codec import decode
 from linkage_engine.data.exporters import read_verification_subgraph
 from linkage_engine.domain.validator import count_solutions
 
+def _has_shipped_puzzles() -> bool:
+    """`puzzles_dir` holding only `manifest.json`/`README.md` is an empty
+    archive, not a missing one -- skip either way rather than failing on
+    "archive is present but empty"."""
+    return any(p.name != "manifest.json" for p in DEFAULT.puzzles_dir.glob("*.json"))
+
+
 pytestmark = pytest.mark.skipif(
-    not DEFAULT.subgraph_path.exists() or not DEFAULT.puzzles_dir.exists(),
+    not DEFAULT.subgraph_path.exists() or not _has_shipped_puzzles(),
     reason="no exported archive yet -- run `linkage export`",
 )
 
@@ -138,13 +144,15 @@ def test_no_two_bank_words_share_a_stem(puzzles):
 # --------------------------------------------------------------------------
 
 
-def test_id_and_date_stay_in_lockstep(puzzles, manifest):
-    """A drift here shows the wrong puzzle number in every share."""
-    epoch = date.fromisoformat(manifest["epoch"])
-    first = manifest["firstId"]
-    for puzzle in puzzles:
-        expected = (epoch + timedelta(days=puzzle["id"] - first)).isoformat()
-        assert puzzle["date"] == expected, puzzle["id"]
+def test_dates_strictly_increase_with_id(puzzles):
+    """Ids are assignment order and stay contiguous (the next test); dates
+    may skip a day the reviewer left empty, but must never repeat or run
+    backwards -- that would show a puzzle number moving the wrong way in a
+    share (planning.md 3.3)."""
+    ordered = sorted(puzzles, key=lambda p: p["id"])
+    for prev, curr in zip(ordered, ordered[1:]):
+        assert curr["id"] == prev["id"] + 1, (prev["id"], curr["id"])
+        assert curr["date"] > prev["date"], (curr["id"], prev["date"], curr["date"])
 
 
 def test_ids_are_contiguous(puzzles, manifest):

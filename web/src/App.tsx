@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { dateForPuzzleNumber, puzzleNumberFor } from './engine/dailyIndex';
+import { todayIsoDate } from './engine/dailyIndex';
 import {
   elapsedMs,
   hintsRemaining,
@@ -38,17 +38,14 @@ type Screen =
   | { kind: 'error'; message: string };
 
 /**
- * `?puzzle=N` forces a puzzle number. Development needs it because the epoch is
- * in the future, so "today" resolves to nothing until launch — and after launch
- * it is still the only way to look at a specific day without changing the clock.
+ * `?date=YYYY-MM-DD` forces a specific day. Development needs it to look at a
+ * puzzle without changing the system clock — and since the archive can skip a
+ * day (planning.md 3.3), a puzzle *number* would not reliably name one date.
  */
-function requestedPuzzleNumber(now: Date): number {
-  const override = new URLSearchParams(window.location.search).get('puzzle');
-  if (override !== null) {
-    const n = Number(override);
-    if (Number.isInteger(n) && n >= 1) return n;
-  }
-  return puzzleNumberFor(now);
+function requestedDate(now: Date): string {
+  const override = new URLSearchParams(window.location.search).get('date');
+  if (override !== null && /^\d{4}-\d{2}-\d{2}$/.test(override)) return override;
+  return todayIsoDate(now);
 }
 
 export interface AppProps {
@@ -58,7 +55,7 @@ export interface AppProps {
 
 export function App({ repo, store }: AppProps) {
   const [screen, setScreen] = useState<Screen>({ kind: 'loading' });
-  const [id, setId] = useState(() => requestedPuzzleNumber(new Date()));
+  const [date, setDate] = useState(() => requestedDate(new Date()));
   const [newDayAvailable, setNewDayAvailable] = useState(false);
   // Lives here, not inside Game: settings/stats/how-to-play don't need a
   // loaded puzzle (SettingsModal is pure theme, HowToPlayModal is static
@@ -67,14 +64,10 @@ export function App({ repo, store }: AppProps) {
   const [panel, setPanel] = useState<Panel>(null);
 
   const load = useCallback(
-    (puzzleId: number) => {
-      if (puzzleId < 1) {
-        setScreen({ kind: 'missing' });
-        return;
-      }
+    (day: string) => {
       setScreen({ kind: 'loading' });
       repo
-        .load(puzzleId, dateForPuzzleNumber(puzzleId))
+        .load(day)
         .then((puzzle) => setScreen({ kind: 'ready', puzzle }))
         .catch((err: unknown) => {
           if (err instanceof PuzzleNotFound) setScreen({ kind: 'missing' });
@@ -84,7 +77,7 @@ export function App({ repo, store }: AppProps) {
     [repo],
   );
 
-  useEffect(() => load(id), [load, id]);
+  useEffect(() => load(date), [load, date]);
 
   /**
    * A tab left open overnight would keep serving yesterday's puzzle and — worse
@@ -94,7 +87,7 @@ export function App({ repo, store }: AppProps) {
   useEffect(() => {
     const check = () => {
       if (document.visibilityState === 'hidden') return;
-      if (requestedPuzzleNumber(new Date()) !== id) setNewDayAvailable(true);
+      if (requestedDate(new Date()) !== date) setNewDayAvailable(true);
     };
     document.addEventListener('visibilitychange', check);
     window.addEventListener('focus', check);
@@ -102,7 +95,7 @@ export function App({ repo, store }: AppProps) {
       document.removeEventListener('visibilitychange', check);
       window.removeEventListener('focus', check);
     };
-  }, [id]);
+  }, [date]);
 
   return (
     <div className="flex min-h-screen justify-center px-4 pb-11 pt-7 md:items-center md:py-10">
@@ -121,19 +114,19 @@ export function App({ repo, store }: AppProps) {
             newDayAvailable={newDayAvailable}
             onPlayToday={() => {
               setNewDayAvailable(false);
-              setId(requestedPuzzleNumber(new Date()));
+              setDate(requestedDate(new Date()));
             }}
             setPanel={setPanel}
           />
         ) : (
           <>
             <Header
-              puzzleNumber={id}
+              puzzleNumber={null}
               onStats={() => setPanel('stats')}
               onHowToPlay={() => setPanel('howto')}
               onSettings={() => setPanel('settings')}
             />
-            <Placeholder screen={screen} onRetry={() => load(id)} />
+            <Placeholder screen={screen} onRetry={() => load(date)} />
           </>
         )}
       </div>

@@ -73,10 +73,13 @@ describe('validatePuzzle', () => {
     expect(() => validatePuzzle(withOverride({ bank }))).toThrow(/absent from bank: sky/);
   });
 
-  it('rejects an id that disagrees with its date', () => {
-    // A drift here would print the wrong puzzle number in every share
-    // (planning.md 3.1) — invisible until it is everywhere.
-    expect(() => validatePuzzle(withOverride({ id: 5 }))).toThrow(/implies 2026-10-05/);
+  it('accepts an id whose date does not follow from any formula', () => {
+    // The archive may skip a day (planning.md 3.3), so an id no longer
+    // implies a date the way it once did -- only the served-date check below
+    // still ties a payload to where it came from.
+    expect(validatePuzzle(withOverride({ id: 5, date: '2026-11-20' }))).toEqual(
+      withOverride({ id: 5, date: '2026-11-20' }),
+    );
   });
 
   it('rejects a payload served under a different date than it claims', () => {
