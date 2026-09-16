@@ -423,6 +423,7 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
         onHint={over || hintsRemaining(state, puzzle) === 0 ? undefined : takeHint}
         shareText={state.status === 'won' ? buildShareText(state) : undefined}
         shareParts={state.status === 'won' ? buildShareParts(state) : undefined}
+        finalElapsedMs={state.status === 'won' ? elapsed : undefined}
       />
 
       <WordBank

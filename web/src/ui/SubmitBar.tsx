@@ -30,6 +30,9 @@ export interface SubmitBarProps {
   shareText?: string | undefined;
   /** Same content as `shareText`, split for the card's two-line layout. */
   shareParts?: ShareParts | undefined;
+  /** Final solve time -- frozen by `elapsedMs` once `finishedAt` is set.
+   * Picks the celebration tier (below), so it's only meaningful when won. */
+  finalElapsedMs?: number | undefined;
 }
 
 /** Left of Check, not in the header -- a hint is an alternative to checking,
@@ -72,12 +75,12 @@ function HintButton({
   );
 }
 
-/** Tiered by attempts taken, so a first-try solve reads differently from a
- * hard-won one — same spirit as Connections' Perfect/Solid/Phew ladder. */
-const CELEBRATIONS = ['🎉 Perfect!', '✨ Nicely done!', '👏 Solved it!', '🙌 Got there!'];
-
-function celebrationFor(attemptsTaken: number): string {
-  return CELEBRATIONS[Math.min(attemptsTaken, CELEBRATIONS.length) - 1]!;
+/** Tiered by solve time, not attempts -- three lines, plain and brief. */
+function celebrationFor(finalElapsedMs: number): string {
+  const seconds = finalElapsedMs / 1000;
+  if (seconds < 30) return '⚡ Lightning fast!';
+  if (seconds < 60) return '🎉 Perfect!';
+  return '✨ Nicely done!';
 }
 
 function message(lastCorrect: number | null): string {
@@ -95,6 +98,7 @@ export function SubmitBar({
   onHint,
   shareText,
   shareParts,
+  finalElapsedMs,
 }: SubmitBarProps) {
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -142,7 +146,10 @@ export function SubmitBar({
         </div>
       )}
 
-      {status === 'won' && shareText !== undefined && shareParts !== undefined && (
+      {status === 'won' &&
+        shareText !== undefined &&
+        shareParts !== undefined &&
+        finalElapsedMs !== undefined && (
         <>
           <button
             type="button"
@@ -156,7 +163,7 @@ export function SubmitBar({
             onClose={() => setShareOpen(false)}
             shareText={shareText}
             shareParts={shareParts}
-            celebration={celebrationFor(attemptsTaken)}
+            celebration={celebrationFor(finalElapsedMs)}
           />
         </>
       )}
