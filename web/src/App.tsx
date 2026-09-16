@@ -63,6 +63,20 @@ export function App({ repo, store }: AppProps) {
   // open them must work on the loading/missing/error screens too.
   const [panel, setPanel] = useState<Panel>(null);
 
+  // Gates `Game` itself, not just its content -- Linkage is timed, so the
+  // fix for "a new player doesn't know the rules yet" has to be "the clock
+  // hasn't started yet," not "the rules are shown over a clock that has."
+  // `Game`'s `useReducer` captures `Date.now()` at mount, so simply not
+  // mounting it yet is the whole mechanism; nothing in gameReducer changes.
+  // The gate itself is just HowToPlayModal forced open with `firstRun` --
+  // no separate welcome screen, so there is exactly one rules panel to keep
+  // in sync rather than two (2026-09-16 chat design).
+  const [onboarded, setOnboarded] = useState(() => store.hasOnboarded());
+  const dismissGate = useCallback(() => {
+    store.markOnboarded();
+    setOnboarded(true);
+  }, [store]);
+
   const load = useCallback(
     (day: string) => {
       setScreen({ kind: 'loading' });
@@ -98,15 +112,18 @@ export function App({ repo, store }: AppProps) {
   }, [date]);
 
   return (
-    <div className="flex min-h-screen justify-center px-4 pb-11 pt-7 md:items-center md:py-10">
+    <div className="flex min-h-screen justify-center px-4 pb-6 pt-4 md:items-center md:py-10">
       {/* Bare on a phone, where the viewport already is the frame. From
           tablet width up, a bordered card with a soft shadow reads as "this
           is the play area" against an otherwise-empty desktop background.
           390px is a common phone logical width (iPhone 12-15); `md:items-center`
           stops the card stretching to fill the browser window's full height,
           so it sizes to its content like an actual phone screen would. */}
-      <main className="flex w-full max-w-[390px] flex-col gap-6 md:rounded-[32px] md:border md:border-rule md:bg-surface md:p-6 md:shadow-[0_8px_30px_rgba(31,29,26,0.08)]">
-        {screen.kind === 'ready' ? (
+      <main className="flex w-full max-w-[390px] flex-col gap-3 md:rounded-[32px] md:border md:border-rule md:bg-surface md:p-6 md:shadow-[0_8px_30px_rgba(31,29,26,0.08)]">
+        {/* Nothing to show behind the forced-open modal below -- Settings/Stats
+            icons would race it into a second stacked <dialog> if they were
+            live here, and the native ::backdrop already covers the viewport. */}
+        {!onboarded ? null : screen.kind === 'ready' ? (
           <Game
             key={screen.puzzle.id}
             puzzle={screen.puzzle}
@@ -132,7 +149,17 @@ export function App({ repo, store }: AppProps) {
       </main>
 
       <StatsModal open={panel === 'stats'} onClose={() => setPanel(null)} stats={store.readStats()} />
-      <HowToPlayModal open={panel === 'howto'} onClose={() => setPanel(null)} />
+      <HowToPlayModal
+        open={panel === 'howto' || !onboarded}
+        firstRun={!onboarded}
+        onClose={() => {
+          setPanel(null);
+          // On a first run, this modal *is* the gate (forced open above) --
+          // closing it via the button, the X, Escape, or the backdrop are
+          // all "I'm ready," not just a rules dismissal.
+          if (!onboarded) dismissGate();
+        }}
+      />
       <SettingsModal open={panel === 'settings'} onClose={() => setPanel(null)} />
     </div>
   );
@@ -253,7 +280,6 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
     <>
       <Header
         puzzleNumber={puzzle.id}
-        onHint={over || hintsRemaining(state, puzzle) === 0 ? undefined : takeHint}
         onStats={() => setPanel('stats')}
         onHowToPlay={() => setPanel('howto')}
         onSettings={() => setPanel('settings')}
@@ -299,6 +325,8 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
         attemptsTaken={state.attempts.length}
         canSubmit={isBoardFull(state)}
         onSubmit={() => dispatch({ type: 'SUBMIT', now: Date.now() })}
+        hintsRemaining={hintsRemaining(state, puzzle)}
+        onHint={over || hintsRemaining(state, puzzle) === 0 ? undefined : takeHint}
         shareText={state.status === 'won' ? buildShareText(state) : undefined}
         shareParts={state.status === 'won' ? buildShareParts(state) : undefined}
       />

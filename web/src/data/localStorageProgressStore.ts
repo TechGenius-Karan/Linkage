@@ -21,6 +21,7 @@ export { emptyStats };
 const PREFIX = 'linkage:v1';
 const STATS_KEY = `${PREFIX}:stats`;
 const PROGRESS_PREFIX = `${PREFIX}:progress:`;
+const ONBOARDED_KEY = `${PREFIX}:onboarded`;
 
 /** Progress entries older than this are pruned on load (planning.md 2.8). */
 const PROGRESS_KEEP_DAYS = 7;
@@ -125,6 +126,14 @@ export class LocalStorageProgressStore implements ProgressStore {
 
   writeStats(stats: Stats): void {
     this.write(STATS_KEY, JSON.stringify(stats));
+  }
+
+  hasOnboarded(): boolean {
+    return this.read(ONBOARDED_KEY) === '1';
+  }
+
+  markOnboarded(): void {
+    this.write(ONBOARDED_KEY, '1');
   }
 
   /** True when writes are actually landing. Exposed for a settings panel. */

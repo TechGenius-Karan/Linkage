@@ -120,7 +120,7 @@ export function Board({
   return (
     <div
       ref={columnRef}
-      className="relative flex touch-none flex-col items-center gap-2.5"
+      className="relative flex touch-none flex-col items-center gap-1.5"
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       // A cancelled pointer (a system gesture, a call arriving) must settle

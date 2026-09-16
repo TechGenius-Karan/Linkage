@@ -40,9 +40,9 @@ export function HintIcon({ size = 24 }: { size?: number } = {}) {
 }
 
 /** Statistics — three ascending bars, the shape the panel's own chart shows. */
-export function StatsIcon() {
+export function StatsIcon({ size = 24 }: { size?: number } = {}) {
   return (
-    <Svg>
+    <Svg size={size}>
       <rect x="3.5" y="14" width="4.5" height="6" rx="1.2" />
       <rect x="10" y="10" width="4.5" height="10" rx="1.2" />
       <rect x="16.5" y="4" width="4.5" height="16" rx="1.2" />
@@ -51,9 +51,9 @@ export function StatsIcon() {
 }
 
 /** How to play — a hand-drawn hook and dot, not a font glyph. */
-export function HelpIcon() {
+export function HelpIcon({ size = 24 }: { size?: number } = {}) {
   return (
-    <Svg>
+    <Svg size={size}>
       <circle cx="12" cy="12" r="10" />
       <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -90,10 +90,41 @@ export function FireIcon({ size = 24 }: { size?: number } = {}) {
   );
 }
 
-/** Settings — an actual gear now. */
-export function SettingsIcon() {
+/** Chain — two linked rings, the mark used everywhere outside the app too
+ * (favicon, social card). First-run welcome header only; nowhere near the
+ * wordmark elsewhere, so it never competes with it (see this file's own
+ * doc comment).
+ *
+ * Not `Svg` -- the two rotated rings only ever ink roughly y:6.5-17.5 of the
+ * shared 24-unit box, so the square viewBox left dead space above and below
+ * the mark no matter what `size` was. Cropped to that actual bounding box
+ * (plus half a stroke-width of padding) and rendered at its own true
+ * (wider-than-tall) aspect ratio instead of forcing it back into a square. */
+export function ChainIcon({ size = 24 }: { size?: number } = {}) {
+  const height = Math.round(size * (13 / 22));
   return (
-    <Svg>
+    <svg
+      width={size}
+      height={height}
+      viewBox="1 5.5 22 13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="3" y="8" width="10" height="8" rx="4" transform="rotate(-18 8 12)" />
+      <rect x="11" y="8" width="10" height="8" rx="4" transform="rotate(-18 16 12)" />
+    </svg>
+  );
+}
+
+/** Settings — an actual gear now. */
+export function SettingsIcon({ size = 24 }: { size?: number } = {}) {
+  return (
+    <Svg size={size}>
       <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
       <circle cx="12" cy="12" r="3" />
     </Svg>

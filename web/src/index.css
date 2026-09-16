@@ -109,13 +109,11 @@ a:hover {
 
   .anchor {
     font-family: var(--type-word);
-    font-size: 28px;
+    font-size: 23px;
     font-weight: 600;
     letter-spacing: 0.02em;
     line-height: 1.1;
     text-transform: uppercase;
-    /* Opaque so the ladder rule is clipped to the gaps, not drawn through. */
-    background: var(--ground);
     padding: 0 10px;
     position: relative;
     z-index: 1;
@@ -125,8 +123,8 @@ a:hover {
     position: relative;
     z-index: 1;
     width: 100%;
-    min-height: 46px;
-    padding: 12px 14px;
+    min-height: 40px;
+    padding: 9px 14px;
     border-radius: 10px;
     font-family: var(--type-word);
     font-size: 17px;
@@ -155,8 +153,8 @@ a:hover {
   }
 
   .tile {
-    min-height: 44px;
-    padding: 12px 14px;
+    min-height: 40px;
+    padding: 9px 14px;
     border-radius: 10px;
     border: 1px solid var(--rule);
     background: var(--surface);
@@ -175,24 +173,33 @@ a:hover {
     background: var(--accent-sub);
     border: 2px solid var(--accent);
     box-shadow: none;
-    padding: 11px 13px;
+    /* Padding shrinks by exactly the border's growth (1px -> 2px, so 1px off
+       each side) so the tile's own outer height matches an idle tile's --
+       otherwise a taller selected tile grows the whole flex-wrap row it sits
+       in, visibly shifting the board (caught 2026-09-16, a regression from
+       shrinking the idle tile's own padding without re-deriving this one). */
+    padding: 8px 13px;
   }
   /* A hint has confirmed this word is in the answer (planning.md 2.5.3).
      Independent of selection, and it persists for the rest of the game --
-     so it must not look like the "picked up" state. A left rule reads as a
-     standing annotation rather than a transient one. */
+     so it must not look like the "picked up" state.
+     `--moon`, not `--accent` -- the first version reused the same teal as
+     `.tile-selected` and read as "this is currently held," which is exactly
+     the wrong message for a mark that stays for the rest of the game. Moon is
+     already "hint" everywhere else in the app (HowToPlayModal's own hint
+     row, the hint button's badge), so this reads as the same signal rather
+     than a third, unrelated colour. Filled, not just outlined, so it reads as
+     a highlight at a glance instead of needing a close look at the border. */
   .tile-confirmed {
-    /* Deliberately NOT an accent border -- that is what `selected` looks like,
-       and the two mean opposite things: selection is transient and about to be
-       spent, confirmation is permanent and informational. A left rule reads as
-       a standing annotation on the tile rather than a state of it, and keeps
-       the elevation shadow the other tiles have. */
-    box-shadow:
-      inset 4px 0 0 var(--accent),
-      0 1px 2px rgb(31 29 26 / 0.06);
+    border-color: var(--moon);
+    background: color-mix(in srgb, var(--moon) 20%, var(--surface));
   }
-  .tile-confirmed:not(.tile-selected) {
-    padding-left: 18px;
+  /* Selected wins when a word is both held and hint-confirmed -- it is the
+     more urgent, transient state, and `.tile-confirmed` would otherwise win
+     this fight on source order alone since both selectors are single-class. */
+  .tile-selected.tile-confirmed {
+    border-color: var(--accent);
+    background: var(--accent-sub);
   }
 
   .tile-placed {

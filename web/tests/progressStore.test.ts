@@ -137,6 +137,15 @@ describe('LocalStorageProgressStore', () => {
     expect(store.readProgress(1)).toEqual(state(1));
   });
 
+  it('has not onboarded until marked', () => {
+    expect(new LocalStorageProgressStore().hasOnboarded()).toBe(false);
+  });
+
+  it('remembers onboarding across a fresh instance', () => {
+    new LocalStorageProgressStore().markOnboarded();
+    expect(new LocalStorageProgressStore().hasOnboarded()).toBe(true);
+  });
+
   it('keeps working when storage is unavailable entirely', () => {
     vi.stubGlobal('localStorage', {
       get length(): number {

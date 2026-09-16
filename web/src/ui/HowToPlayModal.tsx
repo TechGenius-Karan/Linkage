@@ -1,13 +1,24 @@
 /**
- * Presentation tier. Rules, reachable any time (planning.md 8.5.1).
+ * Presentation tier. Rules, reachable any time (planning.md 8.5.1) — and,
+ * with `firstRun`, the whole first-load gate.
+ *
+ * A timed game can't show this the way an untimed one can (see FoxiMax-style
+ * references: their rules float over an already-loaded, inert board, which
+ * only works because nothing is ticking underneath). `firstRun` doesn't
+ * change what this modal does about that -- `App` still withholds `Game`
+ * itself until it closes, same as before -- it only adds the welcome header
+ * and swaps the bottom button's label, so there is exactly one rules panel
+ * in the app rather than a separate welcome screen plus this.
  */
 
-import { CheckIcon, HintIcon, TimerIcon } from './icons';
+import { CheckIcon, ChainIcon, HintIcon, TimerIcon } from './icons';
 import { Modal } from './Modal';
 
 export interface HowToPlayModalProps {
   open: boolean;
   onClose: () => void;
+  /** True only for the once-per-browser first load (planning.md 8.7). */
+  firstRun?: boolean;
 }
 
 /** The four rungs between START and END, fading out — same shape as the real
@@ -40,9 +51,7 @@ function RuleRow({
   last?: boolean;
 }) {
   return (
-    <div
-      className={`flex items-center gap-3.5 pt-[17px] ${last ? 'pb-[19px]' : 'border-b border-rule pb-[17px]'}`}
-    >
+    <div className={`flex items-center gap-3.5 pt-3 ${last ? 'pb-3' : 'border-b border-rule pb-3'}`}>
       {icon}
       <div className="flex flex-col gap-[3px]">
         <span className="text-[15.5px] font-bold tracking-[-0.005em]">{title}</span>
@@ -52,13 +61,24 @@ function RuleRow({
   );
 }
 
-export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
+export function HowToPlayModal({ open, onClose, firstRun = false }: HowToPlayModalProps) {
   return (
     <Modal open={open} onClose={onClose}>
-      <div className="w-[340px] px-6 pb-[22px] pt-[26px]">
+      <div className={`w-[340px] max-h-[92vh] overflow-y-auto px-6 ${firstRun ? 'pb-4 pt-5' : 'pb-[22px] pt-[26px]'}`}>
+        {firstRun && (
+          <div className="mb-2.5 flex flex-col items-center gap-1 text-center">
+            <span className="font-ui text-[18px] font-bold tracking-[0.01em]">
+              Welcome to Linkage!
+            </span>
+            <span className="text-accent">
+              <ChainIcon size={30} />
+            </span>
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-[5px]">
-            <span className="font-word text-[27px] font-semibold leading-[1.05] tracking-[-0.015em]">
+            <span className="font-word text-[27px] font-normal leading-[1.05] tracking-[-0.015em]">
               How to play
             </span>
             <span className="text-[12px] font-semibold tracking-[0.14em] text-accent">
@@ -87,7 +107,7 @@ export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
           </button>
         </div>
 
-        <div className="mt-5 mb-1 h-px bg-rule" />
+        <div className="mt-3 mb-1 h-px bg-rule" />
 
         <div className="flex flex-col">
           <RuleRow icon={<ChainDiagram />} title="Build the chain">
@@ -135,10 +155,10 @@ export function HowToPlayModal({ open, onClose }: HowToPlayModalProps) {
 
         <button
           type="button"
-          className="ring-focus mt-1 h-[50px] w-full rounded-[15px] bg-accent text-[15.5px] font-bold tracking-[0.005em] text-ground transition-[filter,transform] hover:brightness-[1.07] active:scale-[0.99]"
+          className="ring-focus mt-1 h-[46px] w-full rounded-[15px] bg-accent text-[15.5px] font-bold tracking-[0.005em] text-ground transition-[filter,transform] hover:brightness-[1.07] active:scale-[0.99]"
           onClick={onClose}
         >
-          Got it
+          {firstRun ? "Play today's puzzle" : 'Got it'}
         </button>
       </div>
     </Modal>

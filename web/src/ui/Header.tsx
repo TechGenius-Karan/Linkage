@@ -7,11 +7,10 @@
  * a disabled button rather than a button that lies about being live.
  */
 
-import { HelpIcon, HintIcon, SettingsIcon, StatsIcon } from './icons';
+import { HelpIcon, SettingsIcon, StatsIcon } from './icons';
 
 export interface HeaderProps {
   puzzleNumber: number | null;
-  onHint?: (() => void) | undefined;
   onStats?: (() => void) | undefined;
   onHowToPlay?: (() => void) | undefined;
   onSettings?: (() => void) | undefined;
@@ -40,7 +39,6 @@ function Action({ label, onClick, children }: ActionProps) {
 
 export function Header({
   puzzleNumber,
-  onHint,
   onStats,
   onHowToPlay,
   onSettings,
@@ -56,18 +54,15 @@ export function Header({
         )}
       </div>
 
-      <div className="flex items-center gap-1">
-        <Action label="Hint" onClick={onHint}>
-          <HintIcon />
-        </Action>
+      <div className="flex items-center gap-4">
         <Action label="Statistics" onClick={onStats}>
-          <StatsIcon />
+          <StatsIcon size={26} />
         </Action>
         <Action label="How to play" onClick={onHowToPlay}>
-          <HelpIcon />
+          <HelpIcon size={26} />
         </Action>
         <Action label="Settings" onClick={onSettings}>
-          <SettingsIcon />
+          <SettingsIcon size={26} />
         </Action>
       </div>
     </header>

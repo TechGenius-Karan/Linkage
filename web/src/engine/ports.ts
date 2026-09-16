@@ -31,4 +31,14 @@ export interface ProgressStore {
   writeProgress(id: number, state: GameState): void;
   readStats(): Stats;
   writeStats(stats: Stats): void;
+
+  /**
+   * Whether this browser has ever cleared the first-run welcome gate. Not
+   * derived from `readStats().gamesPlayed`, which only increments on a win
+   * (planning.md 2.8) — that would re-show the gate every day to someone
+   * actively mid-streak but not yet victorious. A dedicated flag, set once
+   * and never cleared, is the only signal that means exactly "onboarded."
+   */
+  hasOnboarded(): boolean;
+  markOnboarded(): void;
 }
