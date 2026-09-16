@@ -1,0 +1,11 @@
+Linkage puzzle data
+===================
+
+These puzzles are derived from ConceptNet 5.7 (https://conceptnet.io),
+which is licensed under Creative Commons Attribution-ShareAlike 4.0
+International (CC BY-SA 4.0).
+
+This derived data is therefore distributed under the same licence:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+The Linkage source code is MIT licensed; see the repository root.
