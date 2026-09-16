@@ -54,7 +54,7 @@ function HintButton({
   return (
     <button
       type="button"
-      className={`ring-focus relative grid h-11 w-11 flex-none translate-x-[-10px] translate-y-[2px] place-items-center rounded-lg transition-colors ${
+      className={`ring-focus relative grid h-11 w-11 flex-none translate-x-[-15px] translate-y-[2px] place-items-center rounded-lg transition-colors ${
         disabled ? 'cursor-default text-ink-muted opacity-50' : 'text-ink hover:text-accent'
       }`}
       aria-label={`Hint, ${hintsRemaining} left`}

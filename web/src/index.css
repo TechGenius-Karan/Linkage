@@ -130,8 +130,11 @@ a:hover {
     font-size: 17px;
     font-weight: 500;
     color: var(--ink);
-    /* Or a double-tap zooms the page instead of clearing the slot. */
-    touch-action: manipulation;
+    /* A filled slot is draggable (dnd-kit) -- `none` stops the browser
+       reading a press-and-hold-drag as a page scroll. `manipulation` (which
+       only suppresses double-tap-zoom) isn't enough once a gesture can start
+       here. */
+    touch-action: none;
     transition:
       background 0.16s ease-out,
       border-color 0.16s ease-out,
@@ -163,7 +166,12 @@ a:hover {
     font-size: 17px;
     font-weight: 500;
     color: var(--ink);
-    touch-action: manipulation;
+    /* Explicit, not inherited from a `<button>`'s UA default -- the
+       `DragOverlay` ghost renders this class on a plain `<div>`, which has
+       no such default and would otherwise left-align while dragging. */
+    text-align: center;
+    /* Same reasoning as `.slot` -- a bank tile is now draggable too. */
+    touch-action: none;
     transition:
       background 0.12s ease-out,
       border-color 0.12s ease-out,
@@ -208,20 +216,18 @@ a:hover {
     cursor: default;
   }
 
-  /* Lifted while dragged, and above its siblings so it is never clipped by
-     the next row (docs/design.md 5.1). No transition on transform: the row
-     must track the finger exactly, not lag behind it. */
-  .slot-dragging {
-    z-index: 3;
-    box-shadow: 0 4px 10px rgb(31 29 26 / 0.1);
-    transition: none;
-  }
-
-  /* The row a release would exchange with. Dimmed rather than moved -- a
-     ladder that rearranges itself mid-drag makes the target impossible to
-     aim at. */
+  /* The slot or bank tile a release would exchange with. Dimmed rather than
+     moved -- a ladder that rearranges itself mid-drag makes the target
+     impossible to aim at. */
   .slot-target {
     opacity: 0.6;
+  }
+
+  /* The bank, while something is dragged over it -- signals "release here to
+     send it back," whether the drag came from a slot (remove) or the bank
+     itself (a no-op drop). */
+  .bank-drop-target {
+    background: var(--accent-sub);
   }
 
   /* 40px box, 44px hit area (docs/design.md 7). */

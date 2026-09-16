@@ -8,6 +8,11 @@
 import { elapsedMs } from './gameReducer';
 import type { GameState } from './types';
 
+/** Only ever appended to the clipboard text (`buildShareText`) — never shown
+ * on the on-screen card (`buildShareParts`), so the modal stays a game
+ * summary and the link rides along silently on paste. */
+const SITE_URL = 'https://linkage-daily.netlify.app';
+
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -35,5 +40,6 @@ export function buildShareParts(state: GameState): ShareParts {
  * the on-screen card, which breaks the hint note onto its own row. */
 export function buildShareText(state: GameState): string {
   const { headline, hintNote } = buildShareParts(state);
-  return hintNote === null ? headline : `${headline} ${hintNote}`;
+  const line = hintNote === null ? headline : `${headline} ${hintNote}`;
+  return `${line}\n${SITE_URL}`;
 }

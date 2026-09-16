@@ -1,23 +1,16 @@
 /**
- * Presentation tier. The ladder, and the slide gesture (planning.md 2.2, 2.4).
+ * Presentation tier. The ladder (planning.md 2.2, 2.4).
  *
- * `<Board>` owns the drag because a `<Slot>` cannot know which slot it was
- * dragged onto — only their common parent can. The slots stay pure functions
- * of props.
- *
- * **No drag library.** This is four items in a fixed-height vertical column,
- * which is the easiest possible case: track the pointer's Y delta, divide by
- * row pitch, clamp. `@dnd-kit` exists to solve sortable lists across arbitrary
- * containers with collision detection; we have one container of four rows, and
- * the bank -> slot direction is tap-only. Pointer events are already unified
- * across mouse, touch and pen, which is the reason HTML5 drag-and-drop was
- * rejected in the first place — it does not fire on touch.
- *
- * The reducer never learns dragging exists. This dispatches `MOVE_TILE`.
+ * Pointer-drag (reorder within the board, drag to the bank, drag from the
+ * bank) is `dnd-kit`, wired up in `<Game>` — the common parent of this and
+ * `<WordBank>`, and the only component that can see both ends of a drag that
+ * crosses between them. Each `<Slot>` registers itself as a draggable and a
+ * drop target; this component stays a thin list, same as before. The keyboard
+ * mirror of drag-to-reorder (arrow keys) is the one thing still wired
+ * point-to-point here, since it never leaves the column.
  */
 
-import { Fragment, useCallback, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import { Fragment } from 'react';
 import { AnchorWord } from './AnchorWord';
 import { Slot, type SlotState } from './Slot';
 
@@ -48,19 +41,12 @@ export interface BoardProps {
   revealed?: string[] | undefined;
   onSlotClick?: ((index: number) => void) | undefined;
   onSlotRemove?: ((index: number) => void) | undefined;
-  onMove?: ((from: number, to: number) => void) | undefined;
+  /** Arrow-key reorder only — pointer-drag reorder goes through `dnd-kit`. */
+  onNudge?: ((from: number, to: number) => void) | undefined;
   onEscape?: (() => void) | undefined;
+  /** The game is over — no tap, no drag. */
+  disabled?: boolean | undefined;
 }
-
-interface Drag {
-  from: number;
-  startY: number;
-  offset: number;
-  pitch: number;
-}
-
-/** Below this, a press is a tap and must not be read as a one-row slide. */
-const DRAG_THRESHOLD_PX = 6;
 
 export function Board({
   start,
@@ -69,64 +55,12 @@ export function Board({
   revealed,
   onSlotClick,
   onSlotRemove,
-  onMove,
+  onNudge,
   onEscape,
+  disabled,
 }: BoardProps) {
-  const columnRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<Drag | null>(null);
-
-  /** Row pitch measured from the DOM, so CSS stays the source of truth. */
-  const measurePitch = useCallback((): number => {
-    const nodes = columnRef.current?.querySelectorAll('[data-slot]');
-    if (nodes === undefined || nodes.length < 2) return 0;
-    const a = nodes[0]!.getBoundingClientRect();
-    const b = nodes[1]!.getBoundingClientRect();
-    return b.top - a.top;
-  }, []);
-
-  const targetOf = (d: Drag): number => {
-    if (d.pitch === 0) return d.from;
-    const moved = Math.round(d.offset / d.pitch);
-    return Math.min(slots.length - 1, Math.max(0, d.from + moved));
-  };
-
-  const handleDragStart = (from: number, event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (onMove === undefined || event.button !== 0) return;
-    // Capture so the gesture survives the pointer leaving the element — a
-    // drag that dies mid-flight strands the row somewhere it was never
-    // dropped.
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({ from, startY: event.clientY, offset: 0, pitch: measurePitch() });
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (drag === null) return;
-    setDrag({ ...drag, offset: event.clientY - drag.startY });
-  };
-
-  const endDrag = () => {
-    if (drag === null) return;
-    const to = targetOf(drag);
-    // Under the threshold this was a tap. Slot's own onClick has already
-    // fired for it; moving here as well would double-handle the press.
-    if (Math.abs(drag.offset) >= DRAG_THRESHOLD_PX && to !== drag.from) {
-      onMove?.(drag.from, to);
-    }
-    setDrag(null);
-  };
-
-  const dropTarget = drag === null ? null : targetOf(drag);
-
   return (
-    <div
-      ref={columnRef}
-      className="relative flex touch-none flex-col items-center gap-1.5"
-      onPointerMove={handlePointerMove}
-      onPointerUp={endDrag}
-      // A cancelled pointer (a system gesture, a call arriving) must settle
-      // the row rather than leave it floating.
-      onPointerCancel={endDrag}
-    >
+    <div className="relative flex flex-col items-center gap-1.5">
       <AnchorWord word={start} position="start" />
       <Connector />
 
@@ -144,20 +78,18 @@ export function Board({
               index={i}
               word={reveal ?? word}
               state={state}
-              dragOffset={drag?.from === i ? drag.offset : undefined}
-              isDropTarget={dropTarget === i && drag?.from !== i}
               onClick={onSlotClick}
               onRemove={onSlotRemove}
               onNudge={
-                onMove === undefined
+                onNudge === undefined
                   ? undefined
                   : (index, direction) => {
                       const to = index + direction;
-                      if (to >= 0 && to < slots.length) onMove(index, to);
+                      if (to >= 0 && to < slots.length) onNudge(index, to);
                     }
               }
-              onDragStart={handleDragStart}
               onEscape={onEscape}
+              disabled={disabled}
             />
             <Connector />
           </Fragment>

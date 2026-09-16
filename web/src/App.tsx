@@ -7,6 +7,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import { todayIsoDate } from './engine/dailyIndex';
 import {
   elapsedMs,
@@ -20,6 +29,12 @@ import { buildShareParts, buildShareText } from './engine/shareText';
 import { recordResult } from './engine/stats';
 import { PuzzleNotFound, type GameState, type Puzzle } from './engine/types';
 import { Board } from './ui/Board';
+import {
+  BANK_DROPPABLE_ID,
+  DRAG_ACTIVATION_DISTANCE_PX,
+  parseSlotDroppableId,
+  type DragOrigin,
+} from './ui/dnd';
 import { Header } from './ui/Header';
 import { HowToPlayModal } from './ui/HowToPlayModal';
 import { RestingMoonIcon } from './ui/icons';
@@ -286,8 +301,76 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
   const lastAttempt = state.attempts.at(-1);
   const over = state.status !== 'playing';
 
+  // Pointer-drag, bank <-> board. `<Board>` and `<WordBank>` are siblings, so
+  // this is the one place that sees both a drag's origin and where it
+  // landed (same reasoning the old hand-rolled Board.tsx drag used, just one
+  // level higher now that dragging crosses between them). `sensors` uses
+  // only `PointerSensor` -- mouse, touch and pen are already unified there,
+  // same reason the previous implementation gave for skipping a library
+  // until now. `activationConstraint.distance` is the tap-vs-drag threshold;
+  // under it, the browser's native `click`/`dblclick` fire exactly as before.
+  const [activeDrag, setActiveDrag] = useState<DragOrigin | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDrag((event.active.data.current as DragOrigin | undefined) ?? null);
+  }, []);
+
+  const handleDragCancel = useCallback(() => setActiveDrag(null), []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveDrag(null);
+      const origin = event.active.data.current as DragOrigin | undefined;
+      const overId = event.over?.id;
+      // Released over nothing droppable -- dnd-kit already animates the
+      // overlay back to where the drag started; nothing to dispatch means
+      // nothing changes underneath it.
+      if (origin === undefined || overId === undefined) return;
+
+      if (overId === BANK_DROPPABLE_ID) {
+        // A slot's tile dragged to the bank goes back, same as double-tap.
+        // A bank tile dragged back onto the bank never left -- no-op.
+        if (origin.origin === 'slot') dispatch({ type: 'REMOVE_TILE', slot: origin.index });
+        return;
+      }
+
+      const slotIndex = parseSlotDroppableId(String(overId));
+      if (slotIndex === null) return;
+
+      if (origin.origin === 'bank') {
+        // SELECT_TILE toggles -- only select if this word isn't already the
+        // held tile, or the second dispatch below would see it deselected.
+        if (state.selectedTile !== origin.word) {
+          dispatch({ type: 'SELECT_TILE', tileId: origin.word });
+        }
+        dispatch({ type: 'PLACE_TILE', slot: slotIndex });
+      } else if (slotIndex !== origin.index) {
+        dispatch({ type: 'MOVE_TILE', from: origin.index, to: slotIndex });
+      }
+    },
+    [state.selectedTile],
+  );
+
+  const dragLabel =
+    activeDrag === null
+      ? null
+      : activeDrag.origin === 'bank'
+        ? activeDrag.word
+        : state.slots[activeDrag.index];
+
   return (
-    <>
+    // Always wired, not gated on `over`: every draggable already carries its
+    // own `disabled={over}` (Board/WordBank below), so a finished game simply
+    // never has anything for a sensor to pick up.
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <Header
         puzzleNumber={puzzle.id}
         onStats={() => setPanel('stats')}
@@ -317,7 +400,7 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
         slots={state.slots}
         onSlotClick={over ? undefined : (slot) => dispatch({ type: 'PLACE_TILE', slot })}
         onSlotRemove={over ? undefined : (slot) => dispatch({ type: 'REMOVE_TILE', slot })}
-        onMove={over ? undefined : (from, to) => dispatch({ type: 'MOVE_TILE', from, to })}
+        onNudge={over ? undefined : (from, to) => dispatch({ type: 'MOVE_TILE', from, to })}
         onEscape={
           over
             ? undefined
@@ -327,6 +410,7 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
                 }
               }
         }
+        disabled={over}
       />
 
       <SubmitBar
@@ -347,8 +431,13 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
         selected={state.selectedTile}
         confirmed={state.hintsUsed}
         onTileClick={over ? undefined : (tileId) => dispatch({ type: 'SELECT_TILE', tileId })}
+        disabled={over}
       />
-    </>
+
+      <DragOverlay>
+        {dragLabel === null ? null : <div className="tile pointer-events-none">{dragLabel}</div>}
+      </DragOverlay>
+    </DndContext>
   );
 }
 

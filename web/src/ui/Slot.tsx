@@ -6,15 +6,19 @@
  * because a gesture with no keyboard path is a feature the accessibility
  * section forbids:
  *
- *   slide up/down   ->  ArrowUp / ArrowDown
- *   double-tap      ->  Backspace / Delete
- *   (selection)     ->  Escape
+ *   drag up/down/to bank  ->  ArrowUp / ArrowDown / Backspace / Delete
+ *   double-tap            ->  Backspace / Delete
+ *   (selection)            ->  Escape
  *
- * The slot reports intent; `<Board>` owns the geometry and decides what a
- * gesture meant, because a slot cannot know which slot it was dragged onto.
+ * A filled slot is draggable to any other slot (reorder) or to the bank
+ * (remove); every slot -- filled or empty -- is a drop target. The slot only
+ * registers the gesture with `dnd-kit`; it cannot know where a drag lands,
+ * only `<Game>` (the common parent of this and `<WordBank>`) sees both ends.
  */
 
-import type { PointerEvent as ReactPointerEvent, KeyboardEvent } from 'react';
+import { useCallback, type KeyboardEvent } from 'react';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { slotDroppableId, type DragOrigin } from './dnd';
 
 export type SlotState = 'empty' | 'filled' | 'reveal';
 
@@ -22,16 +26,13 @@ export interface SlotProps {
   index: number;
   word: string | null;
   state: SlotState;
-  /** Pixels this slot is currently displaced by, while being dragged. */
-  dragOffset?: number | undefined;
-  /** True when a drag would land here — dimmed so the target is visible. */
-  isDropTarget?: boolean | undefined;
   onClick?: ((index: number) => void) | undefined;
   onRemove?: ((index: number) => void) | undefined;
-  /** Keyboard mirror of the slide gesture. */
+  /** Keyboard mirror of the drag-to-reorder gesture. */
   onNudge?: ((index: number, direction: -1 | 1) => void) | undefined;
-  onDragStart?: ((index: number, event: ReactPointerEvent<HTMLButtonElement>) => void) | undefined;
   onEscape?: (() => void) | undefined;
+  /** The game is over — no tap, no drag. */
+  disabled?: boolean | undefined;
 }
 
 const STATE_CLASS: Record<SlotState, string> = {
@@ -44,13 +45,11 @@ export function Slot({
   index,
   word,
   state,
-  dragOffset,
-  isDropTarget,
   onClick,
   onRemove,
   onNudge,
-  onDragStart,
   onEscape,
+  disabled,
 }: SlotProps) {
   const position = index + 1;
   const label =
@@ -60,7 +59,19 @@ export function Slot({
         ? `Slot ${position}, ${word}`
         : `Slot ${position}, empty`;
 
-  const dragging = dragOffset !== undefined && dragOffset !== 0;
+  const droppable = useDroppable({ id: slotDroppableId(index) });
+  const draggable = useDraggable({
+    id: slotDroppableId(index),
+    data: { origin: 'slot', index } satisfies DragOrigin,
+    disabled: disabled === true || word === null,
+  });
+  const setRefs = useCallback(
+    (node: HTMLButtonElement | null) => {
+      draggable.setNodeRef(node);
+      droppable.setNodeRef(node);
+    },
+    [draggable.setNodeRef, droppable.setNodeRef],
+  );
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     switch (event.key) {
@@ -85,19 +96,18 @@ export function Slot({
 
   return (
     <button
+      ref={setRefs}
       type="button"
       data-slot={index}
-      className={`slot ring-focus ${STATE_CLASS[state]} ${dragging ? 'slot-dragging' : ''} ${
-        isDropTarget === true ? 'slot-target' : ''
+      className={`slot ring-focus ${STATE_CLASS[state]} ${draggable.isDragging ? 'opacity-40' : ''} ${
+        droppable.isOver ? 'slot-target' : ''
       }`}
-      style={dragOffset === undefined ? undefined : { transform: `translateY(${dragOffset}px)` }}
       aria-label={label}
       onClick={onClick === undefined ? undefined : () => onClick(index)}
       onDoubleClick={onRemove === undefined ? undefined : () => onRemove(index)}
       onKeyDown={handleKeyDown}
-      onPointerDown={
-        onDragStart === undefined || word === null ? undefined : (e) => onDragStart(index, e)
-      }
+      {...draggable.listeners}
+      {...draggable.attributes}
     >
       {word ?? ' '}
     </button>
