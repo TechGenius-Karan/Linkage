@@ -3,9 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Linkage</title>
-    <meta name="description" content="A daily mini word puzzle about the hidden connective tissue between ideas." />
+    <title>Linkage — A Daily Word Connection Puzzle</title>
+    <meta name="description" content="A daily mini word puzzle about the hidden connective tissue between ideas. Connect a start word to an end word with a chain of four." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://linkage-daily.netlify.app/" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1815" media="(prefers-color-scheme: dark)" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Open Graph / Twitter — planning.md 2.5's sharing requirement makes the
+         link preview part of the product, not an afterthought. summary (not
+         summary_large_image) keeps the card compact rather than a full-width
+         banner. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Linkage" />
+    <meta property="og:title" content="Linkage — A Daily Word Connection Puzzle" />
+    <meta property="og:description" content="A daily mini word puzzle about the hidden connective tissue between ideas. Connect a start word to an end word with a chain of four." />
+    <meta property="og:url" content="https://linkage-daily.netlify.app/" />
+    <meta property="og:image" content="https://linkage-daily.netlify.app/og-image.png" />
+    <meta property="og:image:width" content="875" />
+    <meta property="og:image:height" content="875" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Linkage — A Daily Word Connection Puzzle" />
+    <meta name="twitter:description" content="A daily mini word puzzle about the hidden connective tissue between ideas." />
+    <meta name="twitter:image" content="https://linkage-daily.netlify.app/og-image.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Linkage",
+        "url": "https://linkage-daily.netlify.app/",
+        "description": "A daily mini word puzzle about the hidden connective tissue between ideas. Connect a start word to an end word with a chain of four.",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
 
     <!--
       Applies the stored theme before the browser paints (docs/design.md 2.1).

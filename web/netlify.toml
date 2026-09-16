@@ -19,13 +19,25 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# manifest.json is the one file in the archive that's both long-lived and
-# mutable (its `count` grows with every export batch) — see
-# docs/deployment.md §5.3. A short cache keeps a client from under-counting
-# the archive for long after a fresh batch ships. Dated puzzle files
-# (2026-10-01.json etc.) need no special rule: each date is a distinct URL,
-# so a stale cached copy of a past day is simply irrelevant once local
-# midnight moves the client on to requesting a new filename.
+# Vite fingerprints every filename under /assets/ with a content hash, so a
+# cached copy can never go stale -- a change ships under a new URL, not this
+# one. Long cache here is pure repeat-visit speed, not a staleness risk.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Dated puzzle files (2026-10-01.json etc.) are each a distinct, never-changing
+# URL once shipped, so caching them for as long as a browser will keep them is
+# pure speed with no staleness risk. manifest.json is the one path under
+# /puzzles/ this rule must NOT catch -- its `count` grows with every export
+# batch (docs/deployment.md §5.3) -- so the narrower, short-cache rule for it
+# is declared after this one to win the match.
+[[headers]]
+  for = "/puzzles/*.json"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/puzzles/manifest.json"
   [headers.values]

@@ -287,7 +287,12 @@ Netlify vs. Render a tie in §2, not a reason to delay.
 hosting change)*
 Favicon and Open Graph/Twitter-card meta tags in `index.html` — the
 outstanding Phase 5 item, with real product cost given §1.4's sharing
-requirement. A one-line error boundary around `<App>`.
+requirement. **Done** (2026-09-16): favicon (SVG + apple-touch-icon), OG/Twitter
+tags with a compact `summary`-card social image, `robots.txt`, `sitemap.xml`,
+and JSON-LD `WebApplication` structured data, plus `[[headers]]` entries
+caching hashed `/assets/*` and dated `/puzzles/*.json` files for a year
+(manifest.json's own 5-minute rule still wins for that one path). Still
+outstanding: a one-line error boundary around `<App>`.
 
 **Tier 4 — Build the real archive.** *(the actual bottleneck: reviewer-days, not engineering-hours)*
 Unaffected by any hosting decision. Finish reviewing enough of the 854
@@ -321,7 +326,7 @@ are affected by the platform switch.
 - [x] `vite.config.ts` `base` updated to `'/'`
 - [ ] Netlify site created and connected to the GitHub repo, production branch = `main`
 - [ ] Custom domain purchased and pointed (optional, independent of the rest)
-- [ ] Favicon + OG/Twitter meta tags in `index.html`
+- [x] Favicon + OG/Twitter meta tags in `index.html`, `robots.txt`, `sitemap.xml`, JSON-LD
 - [ ] Error boundary around `<App>`
 - [ ] ~30–40 candidates accepted in `decisions.json` (currently 14)
 - [ ] First real `linkage export` run; `manifest.json` count reflects it
