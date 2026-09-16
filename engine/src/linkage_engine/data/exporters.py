@@ -306,6 +306,13 @@ def write_verification_subgraph(
     puzzles: Sequence[Puzzle],
     manual_edges: Sequence[tuple[str, str, float]] = (),
 ) -> Path:
+    # A well-chosen decoy is picked *because* it doesn't connect to the rest
+    # of its puzzle -- that's what "doesn't create a shortcut" means. Deriving
+    # nodes only from `edges` would silently drop exactly that kind of word
+    # (a hand edit can also strand one: swapping a solution word out removes
+    # its only link to a decoy that had no other connection). `nodes` makes
+    # every puzzle word a node regardless of whether it has an edge to import.
+    nodes = sorted({w for p in puzzles for w in (*p.bank, p.start, p.end)})
     _write_json(
         cfg.subgraph_path,
         {
@@ -315,6 +322,7 @@ def write_verification_subgraph(
                 "plus any link a reviewer asserted by hand. Verification only. "
                 "Plaintext answer key -- never serve this."
             ),
+            "nodes": nodes,
             "edges": build_verification_subgraph(graph, puzzles, manual_edges),
         },
     )
@@ -325,6 +333,7 @@ def read_verification_subgraph(path: Path) -> nx.Graph:
     """Rebuild a graph from the fixture, for tests that must not touch the dump."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     graph = nx.Graph()
+    graph.add_nodes_from(payload.get("nodes", ()))
     for a, b, weight in payload["edges"]:
         graph.add_edge(a, b, weight=weight)
     return graph

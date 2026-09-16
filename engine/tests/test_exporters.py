@@ -219,6 +219,24 @@ def test_subgraph_roundtrips_into_a_usable_graph(cfg):
     assert rebuilt["apple"]["newton"]["weight"] == pytest.approx(3.0)
 
 
+def test_subgraph_keeps_a_decoy_with_no_edges_to_its_own_puzzle(cfg):
+    """A decoy chosen *because* it doesn't connect to the rest of its puzzle
+    (or one a hand edit strips its only connection from -- see 2026-09-21's
+    'antenna', stranded when the edited-out solution word 'roof' was its only
+    link) must still round-trip as a node, or the completeness test that
+    exists to catch a dropped edge (planning.md 7.10) fails on a puzzle that
+    was never broken in the first place.
+    """
+    graph = _graph_with_extra_edges()  # has no node named "unheard" at all
+    candidate = make_candidate(extra=("pie", "salt", "unheard"))
+    puzzles = exporters.assign_dates([candidate], "2026-10-01")
+
+    path = exporters.write_verification_subgraph(cfg, graph, puzzles)
+    rebuilt = exporters.read_verification_subgraph(path)
+    assert "unheard" in rebuilt
+    assert rebuilt.degree("unheard") == 0
+
+
 def test_subgraph_lands_outside_the_web_root(cfg):
     """It is a plaintext answer key. Serving it would undo planning.md 3.2."""
     graph = _graph_with_extra_edges()
