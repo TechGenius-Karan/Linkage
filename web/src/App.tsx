@@ -105,7 +105,7 @@ export function App({ repo, store }: AppProps) {
           390px is a common phone logical width (iPhone 12-15); `md:items-center`
           stops the card stretching to fill the browser window's full height,
           so it sizes to its content like an actual phone screen would. */}
-      <div className="flex w-full max-w-[390px] flex-col gap-6 md:rounded-[32px] md:border md:border-rule md:bg-surface md:p-6 md:shadow-[0_8px_30px_rgba(31,29,26,0.08)]">
+      <main className="flex w-full max-w-[390px] flex-col gap-6 md:rounded-[32px] md:border md:border-rule md:bg-surface md:p-6 md:shadow-[0_8px_30px_rgba(31,29,26,0.08)]">
         {screen.kind === 'ready' ? (
           <Game
             key={screen.puzzle.id}
@@ -129,7 +129,7 @@ export function App({ repo, store }: AppProps) {
             <Placeholder screen={screen} onRetry={() => load(date)} />
           </>
         )}
-      </div>
+      </main>
 
       <StatsModal open={panel === 'stats'} onClose={() => setPanel(null)} stats={store.readStats()} />
       <HowToPlayModal open={panel === 'howto'} onClose={() => setPanel(null)} />
