@@ -221,7 +221,17 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
   const [state, dispatch] = useReducer(
     reducer,
     puzzle.id,
-    (pid) => store.readProgress(pid) ?? initialState(pid, Date.now()),
+    (pid) => {
+      const loaded = store.readProgress(pid) ?? initialState(pid, Date.now());
+      // A pause only ever clears via the 'visible' visibilitychange
+      // *transition* below -- and a fresh mount (page reload after the
+      // browser fully discarded a backgrounded tab, which is exactly when a
+      // long pause is most likely) is already visible, so that transition
+      // never fires. Without this, a persisted pausedAt would freeze
+      // elapsedMs forever. The page is visible right now by definition (it
+      // just mounted), so folding the pause in immediately is always correct.
+      return loaded.pausedAt !== null ? reducer(loaded, { type: 'RESUME', now: Date.now() }) : loaded;
+    },
   );
 
   // Persist every change. Cheap, and it is what makes a mid-game refresh
