@@ -5,9 +5,10 @@ it, and handed out consecutive dates. It is now a **proposal** -- a decision
 carrying a date is a person's explicit choice and export puts that puzzle on
 that day.
 
-The invariant these tests guard is the archive's only hard one:
-`date == epoch + (id - 1)` days, with no gaps. A reviewer picks a slot in a
-contiguous run; they cannot punch a hole in it.
+Ids are pure assignment order and stay contiguous; dates do not have to. A
+reviewer may pin a date past a day nothing else can fill -- that day just
+ships with no puzzle, and does not block or renumber anything after it
+(planning.md 3.3).
 """
 
 from __future__ import annotations
@@ -58,7 +59,13 @@ def rows() -> list[dict]:
 
 @pytest.fixture
 def repo(tmp_path, monkeypatch):
-    cfg = Config(repo_root=tmp_path, batch_size=4, launch_week_size=2, hint_count=1)
+    cfg = Config(
+        repo_root=tmp_path,
+        batch_size=4,
+        launch_week_size=2,
+        hint_count=1,
+        epoch_date="2026-10-01",
+    )
     cfg.engine_dir.mkdir(parents=True, exist_ok=True)
     cfg.candidates_path.write_text(json.dumps(rows()), encoding="utf-8")
 
@@ -137,9 +144,10 @@ class TestPinnedDates:
             "2026-10-04": "whale",
         }
 
-    def test_the_id_and_the_date_stay_in_step(self, repo):
-        # The golden invariant. A drift here shows the wrong puzzle number in
-        # every share anyone posts.
+    def test_the_id_and_the_date_stay_in_step_when_the_run_has_no_gap(self, repo):
+        # Four candidates exactly fill four slots, so this pinned run happens
+        # to be contiguous too -- ids and dates agree, as they always will
+        # whenever nothing is skipped.
         decide(repo, aaa="2026-10-04", bbb=None, ccc=None, ddd=None)
         run()
         archive = exporters.read_archive(repo)
@@ -156,21 +164,32 @@ class TestPinnedDates:
         assert len(shipped(repo)) == 4
 
 
-class TestTheRunStaysUnbroken:
-    def test_a_pin_past_a_gap_is_reported_rather_than_silently_dropped(self, repo):
-        # Two free puzzles fill 10-01 and 10-02; nothing is left for 10-03, so
-        # the run stops there. Shipping `aaa` on 10-04 anyway would break
-        # `date == epoch + id - 1` for it and for everything after it.
+class TestGapsInTheRun:
+    def test_a_pin_past_a_gap_ships_anyway(self, repo):
+        # Two free puzzles fill 10-01 and 10-02; nothing is left for 10-03.
+        # `aaa`, pinned on 10-04, ships regardless -- that day not being
+        # fillable does not block a later pin.
         decide(repo, aaa="2026-10-04", bbb=None, ccc=None)
         result = run()
         assert result.exit_code == 0
-        assert "will not ship" in result.output
-        assert "2026-10-04" not in shipped(repo)
+        assert shipped(repo)["2026-10-04"] == "whale"
 
-    def test_and_what_did_ship_is_still_contiguous(self, repo):
+    def test_the_empty_day_is_reported(self, repo):
+        decide(repo, aaa="2026-10-04", bbb=None, ccc=None)
+        result = run()
+        assert "1 day(s) in this window ship with no puzzle: 2026-10-03" in result.output
+
+    def test_the_empty_day_ships_no_file(self, repo):
         decide(repo, aaa="2026-10-04", bbb=None, ccc=None)
         run()
-        assert sorted(shipped(repo)) == ["2026-10-01", "2026-10-02"]
+        assert sorted(shipped(repo)) == ["2026-10-01", "2026-10-02", "2026-10-04"]
+
+    def test_ids_stay_contiguous_across_the_gap(self, repo):
+        # The gap costs the run a calendar day, not a puzzle number.
+        decide(repo, aaa="2026-10-04", bbb=None, ccc=None)
+        run()
+        ids = sorted(p.id for p in exporters.read_archive(repo))
+        assert ids == [1, 2, 3]
 
     def test_a_pin_past_the_end_of_the_batch_is_reported(self, repo):
         # Silently ignoring it would look identical, from the output, to

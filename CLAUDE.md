@@ -107,8 +107,10 @@ in `planning.md` §3. Key points:
 - Words are normalised once, identically on both sides: lowercase, ASCII
   `[a-z]` only, 3–12 chars, no multiword (`_`-containing ConceptNet URIs are
   dropped at parse time). Display uppercasing is CSS-only, never stored.
-- `date` must equal `epoch + (id - 1)` days — the golden test in
-  `test_output_invariants.py` asserts this.
+- `id` is pure assignment order and stays contiguous; `date` does not — the
+  archive may skip a day nothing was scheduled for. The golden test in
+  `test_output_invariants.py` asserts dates strictly increase with id (never
+  backwards or repeated) and that ids themselves form a contiguous run.
 
 ### Why puzzles ship as committed files, not a generated-in-CI artifact
 

@@ -145,10 +145,10 @@ class Config:
 
     # --- Export (planning.md 3.1, 3.3) ---
     schema_version: int = 1
-    epoch_date: str = "2026-10-01"
+    epoch_date: str = "2026-09-16"
 
     # --- Reproducibility (planning.md 7.8) ---
-    seed: int = 20_261_001
+    seed: int = 20_260_916
 
     # --- Dataset ---
     conceptnet_version: str = CONCEPTNET_VERSION

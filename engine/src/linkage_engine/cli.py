@@ -553,14 +553,15 @@ def review(
             if verdict == "quit":
                 break
             if verdict != review_ui.SKIP:
-                # The TUI has no reason prompt, and a rejection needs one
-                # (planning.md 16.2) -- so it records that the reason came from
-                # a surface that cannot collect it, rather than inventing one.
+                # The TUI has no reason prompt, so a reject from here is
+                # recorded with none -- a reason is optional (planning.md
+                # 16.2), and inventing one would poison the data it exists
+                # to collect.
                 today = date.today().isoformat()
                 decisions[row["hash"]] = (
                     decisions_mod.approve(today)
                     if verdict == review_ui.ACCEPT
-                    else decisions_mod.reject(today, reason="Rejected in the terminal review.")
+                    else decisions_mod.reject(today)
                 )
                 decided += 1
     except KeyboardInterrupt:
@@ -700,9 +701,9 @@ def export(
         typer.echo("  empty -- this is the first batch")
     typer.echo(f"  next slot: #{first_id} on {first_date}")
 
-    # The slot run. `date == epoch + (id - 1)` days is the archive's one hard
-    # invariant, so the batch is a contiguous stretch of days and a scheduled
-    # puzzle occupies one of them -- it does not get an arbitrary date.
+    # The window of calendar days this run considers. A day inside it may
+    # ship with no puzzle at all -- ids stay contiguous regardless, dates do
+    # not have to (planning.md 3.3).
     slot_dates = [
         (date.fromisoformat(first_date) + timedelta(days=i)).isoformat()
         for i in range(batch)
@@ -770,30 +771,24 @@ def export(
         random.Random(cfg.seed).shuffle(rest)
         ordered = launch + rest
 
-    # Walk the run in order: a pinned date takes its puzzle, every other day
-    # draws from the auto-selection. Stopping at the first day neither can fill
-    # is what keeps the run unbroken -- a gap would break `date == epoch + id - 1`
-    # for every puzzle after it.
+    # Walk the whole window in date order: a pinned date takes its puzzle,
+    # every other day draws from the auto-selection. A day neither can fill
+    # just ships with nothing -- it does not block a later pinned date from
+    # shipping (planning.md 3.3).
     fill = list(ordered)
-    batched: list[Candidate] = []
+    dated_batch: list[tuple[str, Candidate]] = []
+    skipped: list[str] = []
     for slot in slot_dates:
         if slot in in_window:
-            batched.append(in_window[slot])
+            dated_batch.append((slot, in_window[slot]))
         elif fill:
-            batched.append(fill.pop(0))
+            dated_batch.append((slot, fill.pop(0)))
         else:
-            break
-    unreachable = sorted(d for d in in_window if d > slot_dates[len(batched) - 1]) if batched else sorted(in_window)
-    if unreachable:
-        typer.secho(
-            f"  {len(unreachable)} pinned date(s) sit past a gap and will not "
-            f"ship ({', '.join(unreachable[:3])}). Approve more, or move them.",
-            fg=typer.colors.YELLOW,
-        )
+            skipped.append(slot)
+    if skipped:
+        typer.echo(f"  {len(skipped)} day(s) in this window ship with no puzzle: {', '.join(skipped[:3])}{'...' if len(skipped) > 3 else ''}")
 
-    fresh = exporters.assign_dates(
-        batched, first_date, first_id=first_id, hint_count=cfg.hint_count
-    )
+    fresh = exporters.assign_to_dates(dated_batch, first_id=first_id, hint_count=cfg.hint_count)
     landed = {p.date: p for p in fresh}
     for slot, candidate in in_window.items():
         if slot in landed and landed[slot].solution != candidate.path.steps:
@@ -826,11 +821,11 @@ def export(
 
     _echo_header("Result")
     typer.echo(f"  added     {len(fresh):,}")
-    hand = sum(1 for c in batched if _has_asserted_link(decisions, rows, c))
+    hand = sum(1 for _, c in dated_batch if _has_asserted_link(decisions, rows, c))
     if hand:
         # A number nobody sees is a number nobody checks (docs/admin.md 11.2).
         typer.secho(
-            f"  {hand} of {len(batched)} ship a link asserted by the reviewer, "
+            f"  {hand} of {len(dated_batch)} ship a link asserted by the reviewer, "
             "not by ConceptNet.",
             fg=typer.colors.YELLOW,
         )

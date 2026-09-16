@@ -229,7 +229,8 @@ export interface Slot {
 export interface PoolResponse {
   scheduled: QueuePuzzle[];
   pooled: QueuePuzzle[];
-  /** The whole run. `date == epoch + (id - 1)` days leaves no room for gaps. */
+  /** A contiguous run of upcoming days to schedule into -- any of them may
+   * still end up shipping with no puzzle if it's never claimed. */
   slots: Slot[];
   /** The next seven free ones — a week is the unit a person plans in (12.2). */
   openDays: string[];

@@ -399,8 +399,8 @@ development fixture all move with it.
 ### 2.6 The Daily Cycle
 
 - One puzzle per day, resetting at **midnight local time**.
-- `puzzleNumber = daysBetween(EPOCH_DATE, todayLocal)`.
-- Computed with **date-only arithmetic** (`new Date(y, m, d)` for both endpoints), never raw millisecond subtraction — otherwise DST transitions shift the puzzle by one for half the year. See §8.3.
+- The client fetches `puzzles/{todayLocal}.json` and displays whatever `id` that file carries — there is no `puzzleNumber = daysBetween(...)` formula, because the archive may skip a day (§3.3) and an id is not a pure function of a date. A 404 means "no puzzle today" whether that's before launch, a deliberate gap, or the archive running out.
+- "Today" itself is still computed with **date-only arithmetic** (local calendar fields, formatted directly — never raw millisecond subtraction), because DST transitions shift the day by one for half the year otherwise. See §8.3.
 - Timezone-hopping to reach tomorrow's puzzle early is accepted, exactly as Wordle does.
 
 ### 2.7 Sharing *(rewritten with §2.5.1 — the emoji grid below no longer fits)*
@@ -483,7 +483,7 @@ The single interface between the Python engine and the TypeScript client. **Chan
 }
 ```
 
-> `date` must equal `EPOCH_DATE + (id - 1)` days. The golden test (§11) asserts this — a drift between `id` and `date` would show the wrong puzzle number in every share.
+> `id` is pure assignment order and stays contiguous puzzle to puzzle; `date` does not have to, because the archive may skip a day nothing was scheduled for (§16.6). The golden test (§11) asserts dates strictly increase with id — never backwards, never repeated — which is what actually protects the puzzle number shown in a share.
 
 **`meta` is stripped on export.** The generator carries `minEdgeWeight`, `qualityScore`, and the relation sequence through `candidates.json` and `approved.json` for review and debugging, but they are **removed before writing the per-day files**. They are dead payload weight, and `meta.relations` is a mild hint at the chain's shape.
 
@@ -843,17 +843,24 @@ This keeps the reducer a pure function of `(state, action)` for `useReducer`, ke
 
 ### 8.3 Daily Index — The DST Trap
 
-```ts
-const EPOCH = { y: 2026, m: 9, d: 1 };   // 2026-10-01, month is 0-indexed
+No puzzle number is ever guessed client-side — the archive can skip a day
+(§3.3), so an id is not a pure function of a date. All the client computes is
+*today's date*, and that's a formatting question, not an arithmetic one:
 
-export function puzzleNumberFor(now: Date): number {
-  const a = Date.UTC(EPOCH.y, EPOCH.m, EPOCH.d);
-  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((b - a) / 86_400_000) + 1;
+```ts
+export function todayIsoDate(now: Date): string {
+  const y = String(now.getFullYear()).padStart(4, '0');
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 ```
 
-The subtlety worth flagging: we read **local** calendar fields (`getFullYear` / `getMonth` / `getDate`) but do the arithmetic in **UTC**. That normalises away DST entirely — the day count is exact whether or not a 23- or 25-hour day fell in the interval. Subtracting raw timestamps would drift by one puzzle for half the year in every DST-observing timezone, and would do so silently.
+Reading **local** calendar fields (`getFullYear` / `getMonth` / `getDate`) and
+formatting them directly, rather than subtracting timestamps, is what keeps
+this immune to DST — there's no arithmetic across the boundary left to drift.
+The puzzle *number* the player sees is never computed here at all; it's
+whatever `id` the fetched puzzle carries (§8.4).
 
 A test asserting correct behaviour across a spring-forward boundary is mandatory (§11).
 
@@ -864,7 +871,7 @@ A test asserting correct behaviour across a spring-forward boundary is mandatory
 export class HttpPuzzleRepository implements PuzzleRepository {
   constructor(private baseUrl: string) {}      // import.meta.env.BASE_URL — '/' on Netlify
 
-  async load(id: number, date: string): Promise<Puzzle> {
+  async load(date: string): Promise<Puzzle> {
     const res = await fetch(`${this.baseUrl}puzzles/${date}.json`);
     if (!res.ok) throw new PuzzleNotFound(date);
     const { d } = await res.json();
@@ -878,7 +885,7 @@ export class HttpPuzzleRepository implements PuzzleRepository {
 - [ ] `schemaVersion` matches what this client understands.
 - [ ] `solution.length === CHAIN_LENGTH` and `bank.length` is within `10..12`.
 - [ ] `bank ⊇ solution`, and `bank` contains **no duplicates** (a duplicate would make two tiles indistinguishable and break `tileId`-as-word, §3.1.1).
-- [ ] `id` and `date` agree: `date === EPOCH_DATE + (id - 1)` days.
+- [ ] the payload's own `date` matches the date it was fetched under. (Not `id` against a formula — the archive may skip a day, so nothing here derives one from the other.)
 
 `LocalStorageProgressStore` wraps **every** access in `try/catch` — Safari private mode throws on write, and a `QuotaExceededError` must degrade to in-memory rather than break the game.
 
@@ -951,9 +958,9 @@ Small, individually cheap, and each one is a real bug report if skipped.
 
 | Situation | Behaviour |
 |---|---|
-| **Midnight passes with the tab open** | The puzzle number is computed once on load, so a tab left open overnight would silently keep serving yesterday's puzzle — and worse, would write progress under the old ID. On `visibilitychange` and `focus`, recompute `puzzleNumberFor(new Date())`; if it changed, finish persisting the old puzzle and offer a **"New puzzle available — play today's"** prompt rather than yanking the board away mid-game. |
+| **Midnight passes with the tab open** | Today's date is computed once on load, so a tab left open overnight would silently keep serving yesterday's puzzle — and worse, would write progress under the old ID. On `visibilitychange` and `focus`, recompute `todayIsoDate(new Date())`; if it changed, finish persisting the old puzzle and offer a **"New puzzle available — play today's"** prompt rather than yanking the board away mid-game. |
 | **Fetch fails (offline, flaky network)** | `PuzzleNotFound` vs. a network error are different states. Network error → a retry button and a clear "couldn't load today's puzzle" message. Never an infinite spinner, and never a blank page. |
-| **Puzzle genuinely missing** (before launch, or archive exhausted) | `manifest.json` tells the client before it even tries. Friendly "no puzzle today" state; §13 Risk #8. |
+| **Puzzle genuinely missing** (before launch, a deliberate gap, or archive exhausted) | A 404 on `puzzles/{date}.json` is the one signal for all three — there is no id to distinguish them by, and none is needed. Friendly "no puzzle today" state; §13 Risk #8. |
 | **Two tabs open on the same puzzle** | Last write wins. Deliberately not solved — `localStorage` writes are synchronous and the loser is one stale board. Adding a `storage` listener to reconcile is more code than the bug is worth. `ponytail:` accepted, revisit only if anyone actually reports it. |
 | **System clock is wrong / user timezone-hops** | Accepted, exactly as Wordle does. The puzzle number follows local midnight; there is nothing to defend and nothing worth defending. |
 | **Player refreshes mid-attempt** | Progress is persisted on every state change, so the board and the running timer restore exactly. This is what `linkage:v1:progress:<id>` exists for. |
@@ -1084,10 +1091,10 @@ Rate-limit by IP hash, and treat the whole endpoint as best-effort: **if it fail
 - [x] `engine/types.ts` and `engine/ports.ts` (interfaces live in the domain tier).
 - [x] ESLint `no-restricted-imports` on `src/engine/**` — no `react`, no DOM, no `fetch`.
 - [x] `data/codec.ts` — the decoder; test it against the Python fixture **before** anything depends on it.
-- [x] `HttpPuzzleRepository` + `validatePuzzle` runtime guard (all four checks, §8.4).
+- [x] `HttpPuzzleRepository` + `validatePuzzle` runtime guard (§8.4).
 - [x] `LocalStorageProgressStore` with `try/catch` on every access.
 - [x] Components: `Board`, `Slot`, `WordBank`, `Tile`, `AnchorWord`, plus `Header` with its four buttons (§8.5.1) — presentational only. Display casing via CSS, never stored (§3.1.1).
-- [x] `App.tsx` states: loading / **network error with retry** / **no puzzle today** / ready (§8.7); `main.tsx` as composition root. `?puzzle=N` overrides the day, because the epoch is in the future and "today" resolves to nothing until launch.
+- [x] `App.tsx` states: loading / **network error with retry** / **no puzzle today** / ready (§8.7); `main.tsx` as composition root. `?date=YYYY-MM-DD` overrides the day, because a puzzle number can't reliably name one date once the archive can skip a day (§3.3) — and early on, before launch, "today" resolves to nothing at all.
 - [x] **Verify:** today's puzzle renders with all 11 tiles; no game logic exists yet.
 
 ### Phase 4 — Game Loop & Logic (TypeScript)
@@ -1167,7 +1174,8 @@ its own — it replaces the review screen the reviewer could never actually see.
 - [x] Corpus QC (§7.7.1) surfaced **as a date is chosen**, not only at export.
 - [x] Unschedule, and unapprove.
 - [x] **Verify:** a pinned puzzle lands on its day, auto-selection fills around
-      it, and `date == epoch + (id - 1)` still holds for every puzzle in the run.
+      it, and ids stay contiguous with dates strictly increasing for every
+      puzzle in the run -- even across a day nothing could fill (§16.2).
 
 **6d / 6e / 6f — Round 2: review at volume** *(done)*
 
@@ -1193,7 +1201,7 @@ Proportionate, not exhaustive. Each test below exists because a specific, plausi
 
 | Test | Guards against |
 |---|---|
-| **`test_output_invariants.py`** | **The one that matters.** Loads every shipped puzzle plus `verification-subgraph.json` (§7.10 — so it runs in CI with no dataset), re-runs `solve_all`, asserts **exactly one** solution. Also: no `S–E` edge, `len(solution) == CHAIN_LENGTH`, `10 <= len(bank) <= 12`, `bank ⊇ solution`, no duplicate bank words, no shared stems in a bank, and `date == EPOCH_DATE + (id - 1)` days. If this passes, the game is sound. |
+| **`test_output_invariants.py`** | **The one that matters.** Loads every shipped puzzle plus `verification-subgraph.json` (§7.10 — so it runs in CI with no dataset), re-runs `solve_all`, asserts **exactly one** solution. Also: no `S–E` edge, `len(solution) == CHAIN_LENGTH`, `10 <= len(bank) <= 12`, `bank ⊇ solution`, no duplicate bank words, no shared stems in a bank, ids form a contiguous run, and dates strictly increase with id (never backwards or repeated — gaps are fine). If this passes, the game is sound. |
 | `test_corpus_invariants.py` | The §7.7.1 corpus-level rules: word reuse ≤ `MAX_WORD_REUSE`, no duplicate `(start, end)` pair in either direction, no repeated solution chain. Individually-valid puzzles that make a bad *year*. |
 | `test_subgraph_completeness.py` | That `verification-subgraph.json` is the **induced** subgraph, not just the solution edges — the silent-pass failure mode called out in §7.10. |
 | `test_validator.py` | Solver correctness on hand-built toy graphs with known unique / ambiguous / unsolvable answers. |
@@ -1436,10 +1444,12 @@ was explicit that liking a puzzle must not imply a shipping date, and §7.7.3
 lists the coupling as an open defect.
 
 `export` therefore reads `date` from decisions and **fills around those pins**
-with auto-selection, rather than assigning every date itself. The slots it fills
-are a contiguous run: `date == EPOCH_DATE + (id - 1)` days is this archive's one
-hard invariant (the golden test asserts it), so there is no such thing as a
-free-form date here — only a slot in an unbroken sequence.
+with auto-selection, rather than assigning every date itself. The window it
+scans is a contiguous run of calendar days, but a day in that run may still
+ship with no puzzle at all — if nothing is pinned to it and auto-selection has
+run out of candidates, it's simply skipped. That does not block a later pinned
+date from shipping: ids stay contiguous (the golden test asserts this) and
+dates strictly increase, but the two no longer have to move in lockstep.
 
 ### 16.3 Any reject must collect a reason
 
@@ -1498,8 +1508,8 @@ All of these live in one file per side (`engine/config.py`, `web/src/engine/cons
 | `BATCH_SIZE` | 30 | Puzzles added per `export` -- about a month. The archive grows incrementally (§7.7.1). |
 | `TARGET_APPROVED` | 365 | The eventual archive depth, **not** a precondition for launching. |
 | `LAUNCH_WEEK_SIZE` | 7 | Hand-picked easy puzzles at the front of the archive (§7.7.1). |
-| `SEED` | 20261001 | Any change re-rolls every puzzle. |
-| `EPOCH_DATE` | `2026-10-01` | Puzzle #1. Must match `manifest.json` and every `date` field. |
+| `SEED` | 20260916 | Any change re-rolls every puzzle. |
+| `EPOCH_DATE` | `2026-09-16` | Puzzle #1's date, and the default start point for an empty archive's first batch. Not a formula every later `date` must satisfy — the archive can skip a day (§16.2). |
 
 ---
 

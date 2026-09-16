@@ -10,7 +10,7 @@
 import { HelpIcon, HintIcon, SettingsIcon, StatsIcon } from './icons';
 
 export interface HeaderProps {
-  puzzleNumber: number;
+  puzzleNumber: number | null;
   onHint?: (() => void) | undefined;
   onStats?: (() => void) | undefined;
   onHowToPlay?: (() => void) | undefined;
@@ -49,10 +49,9 @@ export function Header({
     <header className="flex items-center justify-between gap-3">
       <div className="flex items-baseline gap-2">
         <span className="font-word text-[19px] font-semibold tracking-[0.01em]">Linkage</span>
-        {/* Puzzle #1 is EPOCH_DATE; anything before that is pre-launch and has
-            no real number yet (engine/dailyIndex.ts) -- show nothing rather
-            than a confusing negative count. */}
-        {puzzleNumber >= 1 && (
+        {/* null until a puzzle has actually loaded -- before then (or on a
+            day the archive skipped) there is no number to guess at. */}
+        {puzzleNumber !== null && (
           <span className="text-[17px] font-medium text-ink-muted">#{puzzleNumber}</span>
         )}
       </div>

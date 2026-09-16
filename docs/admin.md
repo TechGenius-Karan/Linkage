@@ -294,17 +294,17 @@ failure discovered after thirty decisions.
 
 ### 8. Scheduling picks a slot, not a date
 
-`date == EPOCH_DATE + (id - 1)` days is the archive's one hard invariant, and
-the golden test asserts it. A free-form date picker quietly contradicts it: a
-reviewer choosing the 5th while the 3rd is empty has asked for a gap, and a gap
-renumbers every puzzle after it or breaks the invariant outright.
+Ids stay contiguous puzzle to puzzle; dates strictly increase but may skip a
+day nothing was scheduled for. The golden test asserts both. A free-form date
+picker over an arbitrary future date would still invite a typo years out, so
+the pool still offers a **contiguous run of slots** and scheduling claims one
+of them -- but a reviewer choosing the 5th while the 3rd is empty no longer
+needs to be refused. The 3rd just ships with no puzzle.
 
-So the pool offers a **contiguous run of slots** and scheduling claims one.
-Export then walks that run in order: a pinned day takes its puzzle, every other
-day draws from auto-selection, and the run **stops at the first day neither can
-fill**. A pin sitting past that point is reported rather than shipped, because
-moving it forward to close the gap would put a puzzle on a date the reviewer did
-not choose, and dropping it silently is indistinguishable from having shipped it.
+Export walks that run in order: a pinned day takes its puzzle, every other day
+draws from auto-selection, and a day neither can fill just ships nothing --
+it does not block a later pinned day, and it does not renumber anything after
+it, because ids were never tied to the calendar to begin with.
 
 Auto-assignment is therefore still doing almost all the work. The difference is
 that it now fills *around* human choices instead of overriding them.

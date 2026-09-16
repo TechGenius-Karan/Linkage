@@ -36,22 +36,29 @@ def _candidate_view(row: dict, decision: dec.Decision | None = None) -> dict:
     recomputing anything. That pairing is what makes marking a bad link
     (planning.md 16.2) a click rather than a guess.
 
-    `bank` is the **effective** bank: the generated one with any recorded swaps
-    replayed over it (planning.md 16.4). `candidates.json` is never rewritten,
-    because the content hash covers the bank and editing it in place would
-    orphan the decision that holds the edit.
+    `bank` is the **effective** bank: the generated one with any recorded
+    edits replayed over it (planning.md 16.4), by the same cross-field-aware
+    `apply_puzzle_edits` the edit-preview endpoint proves against -- a solution
+    swap moves its old word into the bank slot it vacated, so a later decoy
+    swap onto that slot doesn't collide with a word that already left. Using
+    the narrower, bank-only replay here instead disagreed with what `edit()`
+    had already proved safe and could refuse to render a puzzle whose edits
+    were perfectly valid. `candidates.json` is never rewritten, because the
+    content hash covers the bank and editing it in place would orphan the
+    decision that holds the edit.
     """
-    solution = list(row["solution"])
-    chain = [row["start"], *solution, row["end"]]
     edits = decision.bank_edits if decision is not None else ()
     try:
-        bank = list(dec.apply_edits(row["bank"], edits))
+        puzzle = dec.apply_puzzle_edits(row["start"], row["end"], row["solution"], row["bank"], edits)
     except dec.DecisionError as exc:
         raise BadRequest(str(exc)) from exc
+    solution = list(puzzle.solution)
+    chain = list(puzzle.nodes)
+    bank = list(puzzle.bank)
     return {
         "hash": row["hash"],
-        "start": row["start"],
-        "end": row["end"],
+        "start": puzzle.start,
+        "end": puzzle.end,
         "solution": solution,
         "chain": chain,
         "decoys": [w for w in bank if w not in set(solution)],
@@ -471,12 +478,13 @@ def range_fix_options(
 
 
 def _slot_dates(cfg: Config, first_date: str) -> list[str]:
-    """The contiguous run a reviewer may schedule into.
+    """The run of upcoming calendar days a reviewer may schedule into.
 
-    Dates are not free-form. The archive's one hard invariant is
-    `date == epoch + (id - 1)` days, so a puzzle does not sit on an arbitrary
-    day -- it occupies a slot in an unbroken run. Offering the run instead of a
-    date picker makes a gap impossible to create by hand.
+    A picker over a free-form date could invite a typo years out. Any day in
+    this run may end up shipping with no puzzle -- export no longer requires
+    every offered day to be filled (planning.md 3.3) -- but the run itself
+    stays a plain contiguous stretch, which is all a reviewer ever needs to
+    plan a week or a month at a time.
     """
     start = date.fromisoformat(first_date)
     return [(start + timedelta(days=i)).isoformat() for i in range(cfg.batch_size)]
@@ -505,14 +513,17 @@ def _scheduled_as_puzzles(
         if hash_ == skip:
             continue
         row = rows[hash_]
+        effective = dec.apply_puzzle_edits(
+            row["start"], row["end"], row["solution"], row["bank"], decision.bank_edits
+        )
         out.append(
             Puzzle(
                 id=-(offset + 1),
                 date=decision.date or "",
-                start=row["start"],
-                end=row["end"],
-                solution=tuple(row["solution"]),
-                bank=dec.apply_edits(row["bank"], decision.bank_edits),
+                start=effective.start,
+                end=effective.end,
+                solution=effective.solution,
+                bank=effective.bank,
             )
         )
     return out
@@ -589,12 +600,17 @@ def schedule(cfg: Config, hash_: str, when: str) -> dict:
         raise BadRequest(str(exc)) from exc
 
     row = rows[hash_]
-    bank = dec.apply_edits(row["bank"], decision.bank_edits)
+    try:
+        effective = dec.apply_puzzle_edits(
+            row["start"], row["end"], row["solution"], row["bank"], decision.bank_edits
+        )
+    except dec.DecisionError as exc:
+        raise BadRequest(str(exc)) from exc
     warnings = corpus.warnings_for(
-        {*bank, row["start"], row["end"]},
-        row["start"],
-        row["end"],
-        row["solution"],
+        {*effective.bank, effective.start, effective.end},
+        effective.start,
+        effective.end,
+        effective.solution,
         context=[*archive, *_scheduled_as_puzzles(rows, decisions, skip=hash_)],
         max_word_reuse=cfg.max_word_reuse,
         window=cfg.word_reuse_window,

@@ -154,11 +154,13 @@ def assign_dates(
     first_id: int = 1,
     hint_count: int = 2,
 ) -> list[Puzzle]:
-    """Turn approved candidates into dated, numbered puzzles.
+    """Turn approved candidates into dated, numbered puzzles, one per
+    consecutive day starting at `start_date`.
 
-    `date` must equal `EPOCH_DATE + (id - 1)` days -- the golden test asserts
-    it, because a drift between id and date shows the wrong puzzle number in
-    every share.
+    The common case: a run of candidates with nothing pinned lands on a
+    contiguous stretch of days. `cli.export`'s batch loop may still leave a
+    day in that stretch empty (see `assign_to_dates`) -- this function is for
+    when it doesn't.
     """
     epoch = date.fromisoformat(start_date)
     puzzles: list[Puzzle] = []
@@ -167,6 +169,35 @@ def assign_dates(
             Puzzle(
                 id=first_id + offset,
                 date=(epoch + timedelta(days=offset)).isoformat(),
+                start=candidate.path.start,
+                end=candidate.path.end,
+                solution=candidate.path.steps,
+                bank=candidate.bank,
+                hints=hint_words(candidate.path, hint_count),
+            )
+        )
+    return puzzles
+
+
+def assign_to_dates(
+    dated: Sequence[tuple[str, Candidate]],
+    first_id: int = 1,
+    hint_count: int = 2,
+) -> list[Puzzle]:
+    """Turn approved candidates into puzzles on the caller's own dates.
+
+    Unlike `assign_dates`, the date is not derived from position -- the batch
+    loop in `cli.export` may leave a day empty (nothing pinned, nothing left
+    to auto-fill), so date and offset-from-start no longer agree. `dated`
+    must already be in ascending date order; ids are still pure assignment
+    order and stay contiguous even though the dates they land on may not.
+    """
+    puzzles: list[Puzzle] = []
+    for offset, (day, candidate) in enumerate(dated):
+        puzzles.append(
+            Puzzle(
+                id=first_id + offset,
+                date=day,
                 start=candidate.path.start,
                 end=candidate.path.end,
                 solution=candidate.path.steps,
@@ -195,8 +226,12 @@ def write_puzzles(cfg: Config, puzzles: Iterable[Puzzle]) -> list[Path]:
 
 
 def write_manifest(cfg: Config, puzzles: Sequence[Puzzle]) -> Path:
-    """Lets the client compute the puzzle number and detect 'no puzzle today'
-    without a 404 round-trip (planning.md 3.3)."""
+    """A summary of the archive for tooling -- not consulted by the client,
+    which fetches by date and treats a 404 as "no puzzle today" (planning.md
+    3.3). Dates may have gaps, so this cannot describe the archive with a
+    single epoch+offset formula the way it once could; `firstId`/`epoch` are
+    just the first shipped puzzle's own id/date.
+    """
     path = cfg.puzzles_dir / "manifest.json"
     _write_json(
         path,

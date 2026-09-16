@@ -5,10 +5,10 @@
  * second one happens, and the whole reason a decision carries `date: null`
  * until somebody deliberately fills it in.
  *
- * Dates are offered as a **run of slots**, not a date picker. The archive's one
- * hard invariant is `date == epoch + (id - 1)` days, so a puzzle occupies a day
- * in an unbroken sequence — a free-form picker would let a reviewer punch a
- * hole that export could never fill.
+ * Dates are offered as a **run of slots**, not a free-form date picker --
+ * that would invite a typo years out. A slot in this run can still end up
+ * shipping with no puzzle (planning.md 3.3); ids stay contiguous regardless,
+ * dates just skip the empty one.
  *
  * The header used to carry three counts nobody asked for ("30 free in the run",
  * "1 shipped · through 2026-10-01"). They are gone: the days themselves say how
