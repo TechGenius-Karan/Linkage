@@ -289,10 +289,14 @@ Favicon and Open Graph/Twitter-card meta tags in `index.html` — the
 outstanding Phase 5 item, with real product cost given §1.4's sharing
 requirement. **Done** (2026-09-16): favicon (SVG + apple-touch-icon), OG/Twitter
 tags with a compact `summary`-card social image, `robots.txt`, `sitemap.xml`,
-and JSON-LD `WebApplication` structured data, plus `[[headers]]` entries
-caching hashed `/assets/*` and dated `/puzzles/*.json` files for a year
-(manifest.json's own 5-minute rule still wins for that one path). Still
-outstanding: a one-line error boundary around `<App>`.
+and JSON-LD `WebApplication` structured data, plus a `[[headers]]` entry
+caching hashed `/assets/*` for a year. `/puzzles/*.json` (manifest + dated
+files) got the same year-long `immutable` treatment initially and had to be
+walked back same-day: Netlify applies a headers rule by path glob to every
+response including 404s, so a not-yet-exported date cached "no puzzle" for a
+year past the point `linkage export` actually shipped it. Now
+`max-age=300, must-revalidate`, matching manifest.json's original rule.
+Still outstanding: a one-line error boundary around `<App>`.
 
 **Tier 4 — Build the real archive.** *(the actual bottleneck: reviewer-days, not engineering-hours)*
 Unaffected by any hosting decision. Finish reviewing enough of the 854

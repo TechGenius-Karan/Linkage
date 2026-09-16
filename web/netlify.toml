@@ -27,18 +27,17 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Dated puzzle files (2026-10-01.json etc.) are each a distinct, never-changing
-# URL once shipped, so caching them for as long as a browser will keep them is
-# pure speed with no staleness risk. manifest.json is the one path under
-# /puzzles/ this rule must NOT catch -- its `count` grows with every export
-# batch (docs/deployment.md §5.3) -- so the narrower, short-cache rule for it
-# is declared after this one to win the match.
+# Covers both manifest.json (mutable -- its `count` grows with every export
+# batch, docs/deployment.md §5.3) and dated puzzle files, which never change
+# once they exist -- but Netlify applies a `[[headers]]` rule by path glob to
+# every response for that path, 404s included, and `linkage export` ships
+# puzzles in batches ahead of time. A date that 404s today can turn into a
+# real file next week's export, and `immutable` on that 404 would cache "no
+# puzzle" for a year, past the point the file starts existing (caught
+# 2026-09-16: a browser that checked before that day's export had run never
+# saw the puzzle after it landed, even hours later). Short + must-revalidate
+# means a stale 404 self-heals within five minutes instead of a year.
 [[headers]]
   for = "/puzzles/*.json"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/puzzles/manifest.json"
   [headers.values]
     Cache-Control = "public, max-age=300, must-revalidate"
