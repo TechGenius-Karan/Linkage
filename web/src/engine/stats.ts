@@ -17,10 +17,28 @@ import type { GameState, Stats } from './types';
  */
 export const TIME_BUCKETS_MS = [30_000, 60_000, 120_000, 300_000] as const;
 
-function bucketFor(ms: number): number {
+export function bucketFor(ms: number): number {
   const i = TIME_BUCKETS_MS.findIndex((upper) => ms <= upper);
   return i === -1 ? TIME_BUCKETS_MS.length : i;
 }
+
+/** mm:ss — shared by the share card, the stats modal, and the clipboard text. */
+export function formatTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+/** e.g. 30_000 -> "30s", 120_000 -> "2m". Short form for a narrow chart label. */
+function shortDuration(ms: number): string {
+  return ms < 60_000 ? `${ms / 1000}s` : `${ms / 60_000}m`;
+}
+
+/** One label per `TIME_BUCKETS_MS` entry, plus the catch-all bucket past the last boundary. */
+export const BUCKET_LABELS = TIME_BUCKETS_MS.map((ms) => `<${shortDuration(ms)}`).concat(
+  `${shortDuration(TIME_BUCKETS_MS[TIME_BUCKETS_MS.length - 1]!)}+`,
+);
 
 export function emptyStats(): Stats {
   return {

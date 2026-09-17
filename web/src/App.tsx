@@ -27,7 +27,7 @@ import {
 import type { ProgressStore, PuzzleRepository } from './engine/ports';
 import { buildShareParts, buildShareText } from './engine/shareText';
 import { recordResult } from './engine/stats';
-import { PuzzleNotFound, type GameState, type Puzzle } from './engine/types';
+import { PuzzleNotFound, type GameState, type Puzzle, type Stats } from './engine/types';
 import { Board } from './ui/Board';
 import {
   BANK_DROPPABLE_ID,
@@ -257,12 +257,17 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
 
   // Fold a finished game into the stats exactly once. `recordResult` is
   // idempotent by puzzle id, so a refresh on the win screen cannot inflate a
-  // streak — but the ref keeps it from even trying on every render.
+  // streak — but the ref keeps it from even trying on every render. Kept in
+  // state (not just written) so the share card can show the just-updated
+  // streak/distribution rather than re-reading storage on every render.
   const recorded = useRef(false);
+  const [wonStats, setWonStats] = useState<Stats | null>(null);
   useEffect(() => {
     if (state.status === 'playing' || recorded.current) return;
     recorded.current = true;
-    store.writeStats(recordResult(store.readStats(), state));
+    const updated = recordResult(store.readStats(), state);
+    store.writeStats(updated);
+    setWonStats(updated);
   }, [store, state]);
 
   // The clock. Ticks once a second while playing; `elapsedMs` freezes itself
@@ -424,6 +429,7 @@ function Game({ puzzle, store, newDayAvailable, onPlayToday, setPanel }: GamePro
         shareText={state.status === 'won' ? buildShareText(state) : undefined}
         shareParts={state.status === 'won' ? buildShareParts(state) : undefined}
         finalElapsedMs={state.status === 'won' ? elapsed : undefined}
+        stats={wonStats ?? undefined}
       />
 
       <WordBank

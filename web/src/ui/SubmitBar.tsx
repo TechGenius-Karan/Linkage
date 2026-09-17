@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ShareParts } from '../engine/shareText';
-import { CHAIN_LENGTH } from '../engine/types';
+import { CHAIN_LENGTH, type Stats } from '../engine/types';
 import { HintIcon } from './icons';
 import { ShareModal } from './ShareModal';
 
@@ -33,6 +33,10 @@ export interface SubmitBarProps {
   /** Final solve time -- frozen by `elapsedMs` once `finishedAt` is set.
    * Picks the celebration tier (below), so it's only meaningful when won. */
   finalElapsedMs?: number | undefined;
+  /** Post-win stats -- caller has already folded this game into them by the
+   * time this is set (planning.md 2.8), so the share card can show the
+   * updated streak/distribution rather than yesterday's numbers. */
+  stats?: Stats | undefined;
 }
 
 /** Left of Check, not in the header -- a hint is an alternative to checking,
@@ -99,6 +103,7 @@ export function SubmitBar({
   shareText,
   shareParts,
   finalElapsedMs,
+  stats,
 }: SubmitBarProps) {
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -149,7 +154,8 @@ export function SubmitBar({
       {status === 'won' &&
         shareText !== undefined &&
         shareParts !== undefined &&
-        finalElapsedMs !== undefined && (
+        finalElapsedMs !== undefined &&
+        stats !== undefined && (
         <>
           <button
             type="button"
@@ -164,6 +170,8 @@ export function SubmitBar({
             shareText={shareText}
             shareParts={shareParts}
             celebration={celebrationFor(finalElapsedMs)}
+            finalElapsedMs={finalElapsedMs}
+            stats={stats}
           />
         </>
       )}

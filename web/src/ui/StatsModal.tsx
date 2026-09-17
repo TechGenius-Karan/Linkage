@@ -3,8 +3,9 @@
  * (planning.md 8.5.1). No win % — every completed game is a win (2.5.1).
  */
 
-import { TIME_BUCKETS_MS } from '../engine/stats';
+import { formatTime } from '../engine/stats';
 import type { Stats } from '../engine/types';
+import { DistributionChart } from './DistributionChart';
 import { FireIcon } from './icons';
 import { Modal } from './Modal';
 
@@ -14,36 +15,23 @@ export interface StatsModalProps {
   stats: Stats;
 }
 
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-}
-
-/** e.g. 30_000 -> "30s", 120_000 -> "2m". Short form for a narrow chart label. */
-function shortDuration(ms: number): string {
-  return ms < 60_000 ? `${ms / 1000}s` : `${ms / 60_000}m`;
-}
-
-const lastBucketMs = TIME_BUCKETS_MS[TIME_BUCKETS_MS.length - 1]!;
-const BUCKET_LABELS = TIME_BUCKETS_MS.map((ms) => `<${shortDuration(ms)}`).concat(
-  `${shortDuration(lastBucketMs)}+`,
-);
-
-function StatCard({
+export function StatCard({
   value,
   label,
   accent = false,
+  compact = false,
 }: {
   value: string;
   label: string;
   accent?: boolean;
+  /** Smaller value text -- the share card's four tiles have less room than
+   * the full-width Statistics modal's two-column grid. */
+  compact?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-0.5 rounded-2xl bg-ground px-[15px] py-[14px]">
       <span
-        className={`font-data text-[27px] font-semibold leading-[1.1] tracking-[-0.03em] ${accent ? 'text-accent' : 'text-ink'}`}
+        className={`font-data font-semibold leading-[1.1] tracking-[-0.03em] ${compact ? 'text-[20px]' : 'text-[27px]'} ${accent ? 'text-accent' : 'text-ink'}`}
       >
         {value}
       </span>
@@ -56,7 +44,6 @@ export function StatsModal({ open, onClose, stats }: StatsModalProps) {
   const average =
     stats.gamesPlayed === 0 ? null : Math.round(stats.totalTimeMs / stats.gamesPlayed);
   const hasSolves = stats.gamesPlayed > 0;
-  const max = Math.max(1, ...stats.distribution);
   const best = stats.distribution.indexOf(Math.max(...stats.distribution));
 
   return (
@@ -117,28 +104,10 @@ export function StatsModal({ open, onClose, stats }: StatsModalProps) {
           </span>
         </div>
 
-        <div className="flex flex-col gap-[7px]">
-          {stats.distribution.map((count, i) => {
-            const isBest = hasSolves && count > 0 && i === best;
-            const barColor = count === 0 ? 'bg-rule' : isBest ? 'bg-accent' : 'bg-accent-sub';
-            const width = count === 0 ? '4px' : `${Math.round(14 + (count / max) * 86)}%`;
-            return (
-              <div key={i} className="flex items-center gap-2.5">
-                <span className="w-[38px] flex-none text-right font-data text-[11.5px] font-medium text-ink-muted">
-                  {BUCKET_LABELS[i]}
-                </span>
-                <div className="h-5 flex-1 overflow-hidden rounded-[7px] bg-ground">
-                  <div className={`h-full rounded-[7px] ${barColor}`} style={{ width }} />
-                </div>
-                <span
-                  className={`w-4 flex-none text-right font-data text-[11.5px] font-semibold ${isBest ? 'text-accent' : 'text-ink-muted'}`}
-                >
-                  {count}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        <DistributionChart
+          distribution={stats.distribution}
+          highlightIndex={hasSolves ? best : null}
+        />
 
         <div className="mt-5 mb-3.5 h-px bg-rule" />
 

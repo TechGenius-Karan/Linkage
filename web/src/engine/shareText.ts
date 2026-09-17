@@ -5,6 +5,7 @@
  * cross-player comparison — v1 deliberately does not have one (planning.md 9).
  */
 
+import { formatTime } from './stats';
 import { elapsedMs } from './gameReducer';
 import type { GameState } from './types';
 
@@ -12,13 +13,6 @@ import type { GameState } from './types';
  * on the on-screen card (`buildShareParts`), so the modal stays a game
  * summary and the link rides along silently on paste. */
 const SITE_URL = 'https://linkage-daily.netlify.app';
-
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-}
 
 export interface ShareParts {
   headline: string;
